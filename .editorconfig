@@ -1,0 +1,56 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 4
+indent_style = space
+insert_final_newline = true
+max_line_length = 160
+tab_width = 4
+trim_trailing_whitespace = true
+
+[*.less]
+indent_size = 2
+
+[*.proto]
+indent_size = 2
+tab_width = 2
+
+[*.sass]
+indent_size = 2
+
+[*.scss]
+indent_size = 2
+
+[*.vue]
+indent_size = 3
+tab_width = 3
+
+[{*.bash,*.sh,*.zsh}]
+indent_size = 2
+tab_width = 2
+
+[{*.cjs,*.es6,*.js,*.mjs}]
+indent_size = 3
+tab_width = 3
+
+[{*.har,*.jsb2,*.jsb3,*.json,*.jsonc,*.postman_collection,*.postman_collection.json,*.postman_environment,*.postman_environment.json,.babelrc,.eslintrc,.prettierrc,.stylelintrc,.ws-context,jest.config,nest-cli.json}]
+indent_size = 2
+
+[{*.hcl,*.nomad}]
+indent_size = 2
+
+[{*.htm,*.html,*.sht,*.shtm,*.shtml}]
+indent_size = 3
+tab_width = 3
+
+[{*.pb,*.textproto,*.txtpb}]
+indent_size = 2
+tab_width = 2
+
+[{*.tf,*.tfvars}]
+indent_size = 2
+
+[{*.yaml,*.yml}]
+indent_size = 2

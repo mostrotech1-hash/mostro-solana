@@ -1,0 +1,29 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+!.env.example
+
+# Rust / Solana
+target/
+.anchor/
+test-ledger/
+**/*-keypair.json
+
+# Docs (local only, never committed)
+/docs/
+
+# OS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+
+# Nuxt
+.nuxt/
+.output/
