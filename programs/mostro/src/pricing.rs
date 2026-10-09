@@ -85,7 +85,9 @@ pub fn sol_usd(config: &Config, price_update: &AccountInfo, now: i64) -> Result<
 
 /// price * 10^(6 + expo) as u64, checked.
 pub fn scale_to_e6(price: u64, expo: i32) -> Result<u64> {
-    let shift = 6 + expo;
+    let shift = 6i32
+        .checked_add(expo)
+        .ok_or_else(|| error!(MostroError::MathOverflow))?;
     let pow = |e: u32| {
         10u128
             .checked_pow(e)
@@ -130,6 +132,10 @@ mod tests {
         assert_eq!(scale_to_e6(11_217_309_341, -8).unwrap(), 112_173_093);
         assert_eq!(scale_to_e6(112, 0).unwrap(), 112_000_000);
         assert_eq!(scale_to_e6(1, -6).unwrap(), 1);
+        // absurd exponents are errors, never panics
+        assert!(scale_to_e6(1, i32::MAX).is_err());
+        assert!(scale_to_e6(1, i32::MIN).is_err());
+        assert!(scale_to_e6(u64::MAX, 20).is_err());
     }
 
     #[test]

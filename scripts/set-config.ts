@@ -36,8 +36,10 @@ run(async () => {
    for (const pair of pairs) {
       const [key, value] = pair.split("=");
       if (!key || value === undefined || !ALL.includes(key)) usage();
-      if (BOOL_KEYS.has(key)) args[key] = value === "true" || value === "1";
-      else if (U8_KEYS.has(key) || U16_KEYS.has(key) || U32_KEYS.has(key)) args[key] = Number(value);
+      if (BOOL_KEYS.has(key)) {
+         if (!["true", "false", "1", "0"].includes(value)) usage();
+         args[key] = value === "true" || value === "1";
+      } else if (U8_KEYS.has(key) || U16_KEYS.has(key) || U32_KEYS.has(key)) args[key] = Number(value);
       else if (U64_KEYS.has(key)) args[key] = new BN(value);
       else if (PUBKEY_KEYS.has(key)) args[key] = new PublicKey(value);
       else if (FEED_KEYS.has(key)) args[key] = feedIdBytes(value);

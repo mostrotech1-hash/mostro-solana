@@ -264,6 +264,16 @@ describe("mostro", () => {
       );
    });
 
+   it("rejects a zero admin price window", async () => {
+      await expectError(
+         program.methods
+            .setConfig(cfgArgs({ adminPriceMaxAgeSecs: 0 }) as any)
+            .accountsPartial({ admin: admin.publicKey, config })
+            .rpc(),
+         "InvalidAmount",
+      );
+   });
+
    it("creates the $MOST curve", async () => {
       await program.methods
          .createCurve({

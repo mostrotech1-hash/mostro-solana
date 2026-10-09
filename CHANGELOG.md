@@ -4,6 +4,7 @@ All notable changes to this repository. Dates are UTC-3 (Buenos Aires).
 
 ## 2026-10-09 (round 2): admin price age, KYC on by default, sponsored redeem, measured costs
 
+- Review follow-ups on MR !3: `admin_price_max_age_secs` must be > 0 in `initialize_config` and `set_config` (a zero, including the zeroed reserved bytes of a config created before this field, would block every mode-0 USDC buy); `scale_to_e6` uses a checked `6 + expo` so absurd exponents return `MathOverflow` instead of panicking (unit tests added); `scripts/set-config.ts` rejects boolean values other than `true/false/1/0` instead of silently sending `false`; docs: KYC-on-devnet statement in ARCHITECTURE 2.6, priority-fee note (charged on the requested CU limit, not on consumed CU), `PriceTooOld` row, SECURITY admin-trust bullet and `set-price.ts` header updated to the mode-0 limit.
 - Integration suite: **28 passing, 0 failing** on a fresh surfpool fork of devnet (`bash scripts/test-local.sh`, run of 2026-10-09 ~10:40 ART), including the sponsor-pays case (`payer != buyer`). Local runner now wipes the cloned devnet program before deploying and bounds each deploy attempt (8 min).
 
 Program upgraded on devnet at slot 509182643 ([explorer](https://explorer.solana.com/address/6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK?cluster=devnet)), IDL upgraded on-chain. `.so` 731,640 bytes (800,000 reserved).

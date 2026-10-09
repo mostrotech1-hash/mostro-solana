@@ -166,7 +166,7 @@ Benefits come from `Config` (defaults: Standard 5% / 24 h, VIP 15% / 72 h) and a
 
 ### 2.6 KYC attestation gate
 
-`set_kyc(wallet, approved, country)` lets the admin write a `Kyc` PDA after an off-chain identity check. When `config.kyc_required` is true, every curve buy requires the buyer's `Kyc` with `approved == true`, and every curve sell requires the seller's. The gate is symmetric so a wallet that cannot buy cannot exit either; otherwise an unverified wallet could receive tokens by transfer and cash out. Redeems are not gated. The flag is off on devnet; flipping it is one `set_config`.
+`set_kyc(wallet, approved, country)` lets the admin write a `Kyc` PDA after an off-chain identity check. When `config.kyc_required` is true, every curve buy requires the buyer's `Kyc` with `approved == true`, and every curve sell requires the seller's. The gate is symmetric so a wallet that cannot buy cannot exit either; otherwise an unverified wallet could receive tokens by transfer and cash out. Redeems are not gated. The flag is **on** on devnet since the 2026-10-09 upgrade (see 2.11); flipping it is one `set_config`, and every wallet that buys or sells there needs a `set_kyc` first.
 
 ### 2.7 Admin cool-off
 

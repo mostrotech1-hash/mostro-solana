@@ -9,9 +9,10 @@
  * In mode 1 the script also reads the Pyth account and prints the live price and its age so a stale
  * feed (older than `max_price_age_secs`) is visible before a buyer hits `PriceTooOld`.
  *
- * In mode 0 the program applies the same age check to `config.price_updated_ts`: an admin price older than
- * `max_price_age_secs` (300 s on devnet) blocks USDC buys with `PriceTooOld`. Re-run this script with a price
- * (or any `set_config` that sets `sol_usd_price_e6`) to refresh the timestamp before a demo.
+ * In mode 0 the program checks `config.price_updated_ts` against its own limit, `admin_price_max_age_secs`
+ * (86_400 s on devnet; Pyth keeps the separate `max_price_age_secs`). An admin price older than that blocks USDC
+ * buys with `PriceTooOld`. Re-run this script with a price (or any `set_config` that sets `sol_usd_price_e6`)
+ * to refresh the timestamp.
  */
 import { BN } from "@coral-xyz/anchor";
 import {

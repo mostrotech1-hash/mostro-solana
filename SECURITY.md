@@ -49,7 +49,7 @@ One hot key holds the first three roles on devnet. This is a deliberate hackatho
 
 ## Known limitations
 
-- **Admin trust.** The admin can pause the protocol, change the fee up to 10%, change pass benefits and split floors, and in price mode 0 set the SOL/USD conversion used by USDC buys (bounded in staleness by `max_price_age_secs`, not in value). These changes take effect immediately. Only the admin transfer has a cool-off. The admin cannot touch artist vaults, nor take over an artist through `set_artist(authority)`.
+- **Admin trust.** The admin can pause the protocol, change the fee up to 10%, change pass benefits and split floors, and in price mode 0 set the SOL/USD conversion used by USDC buys (bounded in staleness by `admin_price_max_age_secs`, which must be > 0, not in value). These changes take effect immediately. Only the admin transfer has a cool-off. The admin cannot touch artist vaults, nor take over an artist through `set_artist(authority)`.
 - **Split floors are not retroactive.** Raising `min_burn_bps` / `min_rewards_bps` applies to later `create_perk` / `set_perk` calls; existing perks keep their split until edited.
 - **Sponsor exposure.** A sponsor that signs as `payer` pays rent and the Core fee for that instruction, but any other instruction in the same transaction can also spend its SOL. The program cannot protect a sponsor that co-signs without inspecting the transaction; that is the sponsor's policy layer (Openfort gas policy, Kora validation).
 - **Upgradeable program.** The upgrade authority can change any behavior. Until the authority is a multisig, users trust the deployer.

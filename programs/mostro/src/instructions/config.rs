@@ -63,6 +63,10 @@ pub fn initialize_config(ctx: Context<InitializeConfig>, args: InitializeConfigA
         args.min_burn_bps as u64 + args.min_rewards_bps as u64 <= BPS_DENOMINATOR,
         MostroError::InvalidBps
     );
+    require!(
+        args.admin_price_max_age_secs > 0,
+        MostroError::InvalidAmount
+    );
     // Rent-floor the treasury so fee transfers smaller than the floor never fail.
     transfer(
         CpiContext::new(
@@ -190,6 +194,7 @@ pub fn set_config(ctx: Context<AdminOnly>, args: SetConfigArgs) -> Result<()> {
     c.min_burn_bps = min_burn;
     c.min_rewards_bps = min_rewards;
     if let Some(v) = args.admin_price_max_age_secs {
+        require!(v > 0, MostroError::InvalidAmount);
         c.admin_price_max_age_secs = v;
     }
     emit!(ConfigUpdated {
