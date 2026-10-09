@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+.ck-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f6f7f9; }
+.ck-card { width: 380px; max-width: calc(100vw - 2rem); background: #fff; border-radius: 24px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02), 0 10px 40px rgba(0, 0, 0, 0.06); padding: 32px 28px; }
+.ck-title { font-size: 20px; font-weight: 600; color: #373737; margin: 0 0 4px; }
+.ck-subtitle { font-size: 15px; color: #999; margin: 0 0 20px; }
+.ck-list { display: flex; flex-direction: column; gap: 12px; }
+.ck-input-row { display: flex; align-items: center; background: #e0e4eb; border-radius: 16px; padding: 4px 4px 4px 16px; }
+.ck-input { flex: 1; border: none; background: transparent; font-size: 15px; color: #373737; padding: 12px 0; outline: none; }
+.ck-input::placeholder { color: #999; }
+.ck-input-submit { width: 40px; height: 40px; border-radius: 12px; border: none; background: #373737; color: #fff; cursor: pointer; }
+.ck-input-submit:disabled, .ck-primary-button:disabled, .ck-row:disabled { opacity: 0.4; cursor: default; }
+.ck-row { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 56px; padding: 0 20px; border: none; border-radius: 16px; background: #f6f7f9; color: #373737; font-size: 16px; font-weight: 600; cursor: pointer; }
+.ck-row:hover:not(:disabled) { background: #f0f2f5; }
+.ck-primary-button { height: 48px; border: none; border-radius: 16px; background: #373737; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+.ck-link-button { border: none; background: none; color: #999; font-size: 14px; cursor: pointer; }
+.ck-divider { text-align: center; font-size: 13px; color: #999; margin: 4px 0; }
+.ck-error { font-size: 13px; color: #d93025; margin: 0; }
+.ck-field { background: #f6f7f9; border-radius: 16px; padding: 12px 16px; font-size: 13px; color: #373737; word-break: break-all; }
+.ck-field small { display: block; color: #999; margin-bottom: 2px; }
