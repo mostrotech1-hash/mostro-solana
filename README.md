@@ -39,7 +39,14 @@ yarn test:programs             # integration suite on a fresh surfpool fork of d
 anchor deploy                  # cluster from Anchor.toml (devnet)
 yarn export:shared             # copy IDL and types into shared/
 yarn seed:devnet               # initialize config, $MOST curve, demo artist and perks
+npx ts-node scripts/set-kyc.ts <wallet> true GB      # approve a wallet (kyc_required is on: needed before any buy/sell)
+npx ts-node scripts/set-config.ts key=value ...      # admin switchboard: kycRequired, paused, feeBps, adminPriceMaxAgeSecs, ...
+npx ts-node scripts/set-price.ts <0|1> [priceUsd]    # SOL/USD source; refreshes the admin price (expires after 24 h)
+npx ts-node scripts/demo-buy.ts [sol]                # buy, redeem a pass, redeem a perk with the pass discount
+npx ts-node scripts/demo-sponsored.ts [perkIndex]    # fan wallet with 0 SOL redeems a perk; the CLI wallet pays as `payer`
 ```
+
+Devnet status (2026-10-09): program [`6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK`](https://explorer.solana.com/address/6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK?cluster=devnet) with the IDL on-chain, `.so` 731,640 of 800,000 reserved bytes. `kyc_required = true`, so every new wallet must be approved with `set-kyc.ts` before buying or selling; redeems are not gated. Admin SOL/USD price valid 24 h (`admin_price_max_age_secs = 86_400`). Measured `redeem_perk`: 109,290 CU, 0.00544748 SOL charged to the payer. Reference transactions: [redeem with the pass discount](https://explorer.solana.com/tx/3gAt6NB9cNwr8bf3UpoqMmens4vzYu3AocQAHTsbT5csRBqH6GvgEhCApTdp2u1yBf7VcUsWX9KX6BX3Hq5AAH6o?cluster=devnet), [pass asset](https://explorer.solana.com/address/8V69nDgc24kERDDyMLQgeGAjNttxUa4KZBwJLXT83q6m?cluster=devnet), [sponsored redeem by a 0-SOL wallet](https://explorer.solana.com/tx/4kb1hVAH1dPvM8dBrB2ZumCddM62aSe46mkS7X51cqfCSeh8QDP9Xz5RSRGbY9bDtUq2cs5TLhQ1fbFgyDnbTBZJ?cluster=devnet).
 
 Documentation:
 
