@@ -219,9 +219,15 @@ describe("price.ts mirrors pricing.rs", () => {
          .to.throw(PriceError)
          .with.property("code", "PriceNotSet");
       // Admin mode also enforces max_price_age_secs against config.price_updated_ts.
-      const aged = { ...admin, maxPriceAgeSecs: 300, priceUpdatedTs: new BN(now - 100) };
+      // The admin price has its own max age (admin_price_max_age_secs), independent of the Pyth one (max_price_age_secs).
+      const aged = { ...admin, maxPriceAgeSecs: 300, adminPriceMaxAgeSecs: 86_400, priceUpdatedTs: new BN(now - 100) };
       expect(solUsdFromConfig(aged, undefined, now).publishTime).to.equal(now - 100);
-      expect(() => solUsdFromConfig({ ...aged, priceUpdatedTs: new BN(now - 301) }, undefined, now))
+      expect(solUsdFromConfig({ ...aged, priceUpdatedTs: new BN(now - 3_600) }, undefined, now).priceE6.toString()).to.equal("150000000");
+      expect(() => solUsdFromConfig({ ...aged, priceUpdatedTs: new BN(now - 86_401) }, undefined, now))
+         .to.throw(PriceError)
+         .with.property("code", "PriceTooOld");
+      // Without the field the SDK falls back to maxPriceAgeSecs (older configs).
+      expect(() => solUsdFromConfig({ ...admin, maxPriceAgeSecs: 300, priceUpdatedTs: new BN(now - 301) }, undefined, now))
          .to.throw(PriceError)
          .with.property("code", "PriceTooOld");
 

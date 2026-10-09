@@ -102,8 +102,10 @@ export interface PriceConfigLike {
    pythFeedId: number[] | Uint8Array;
    maxPriceAgeSecs: number;
    pythSolUsdAccount?: PublicKey;
-   /** When set, admin mode (0) also enforces `now - priceUpdatedTs <= maxPriceAgeSecs`, as the program does. */
+   /** When set, admin mode (0) also enforces `now - priceUpdatedTs <= adminPriceMaxAgeSecs`, as the program does. */
    priceUpdatedTs?: BNLike;
+   /** `Config.admin_price_max_age_secs`: max age of the admin price in mode 0 (86,400 s on devnet). Falls back to `maxPriceAgeSecs` when absent. */
+   adminPriceMaxAgeSecs?: number;
 }
 
 export interface SolUsd {
@@ -118,7 +120,8 @@ export interface SolUsd {
 /**
  * SOL/USD (6 decimals) exactly as `pricing::sol_usd` resolves it. In Pyth mode you must pass the raw
  * data of `config.pythSolUsdAccount`; `now` defaults to the local clock. In admin mode the price must have
- * been written within `maxPriceAgeSecs` (checked when `config.priceUpdatedTs` is provided).
+ * been written within `adminPriceMaxAgeSecs` (checked when `config.priceUpdatedTs` is provided); Pyth mode uses
+ * `maxPriceAgeSecs`. Pass the whole decoded `Config` account and both are picked up.
  */
 export function solUsdFromConfig(config: PriceConfigLike, pythAccountData?: Buffer | Uint8Array, now: number = Math.floor(Date.now() / 1000)): SolUsd {
    if (config.priceMode === PRICE_MODE_ADMIN) {
@@ -126,7 +129,8 @@ export function solUsdFromConfig(config: PriceConfigLike, pythAccountData?: Buff
       if (p.lte(new BN(0))) throw new PriceError("PriceNotSet");
       if (config.priceUpdatedTs !== undefined) {
          const age = now - bn(config.priceUpdatedTs).toNumber();
-         if (age > config.maxPriceAgeSecs) throw new PriceError("PriceTooOld", `admin price is ${age}s old (max ${config.maxPriceAgeSecs}s); run set_config`);
+         const maxAge = config.adminPriceMaxAgeSecs ?? config.maxPriceAgeSecs;
+         if (age > maxAge) throw new PriceError("PriceTooOld", `admin price is ${age}s old (max ${maxAge}s); run set_config`);
          return { priceE6: p, source: PRICE_MODE_ADMIN, publishTime: bn(config.priceUpdatedTs).toNumber() };
       }
       return { priceE6: p, source: PRICE_MODE_ADMIN };

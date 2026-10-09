@@ -73,6 +73,9 @@ export enum PerkKindCode {
  */
 export const DEFAULT_COLLECTION_SALT = 1;
 
+/** Devnet `Config.admin_price_max_age_secs` (mode 0) and `max_price_age_secs` (mode 1, Pyth), as seeded. Read the live values from `Config`. */
+export const DEVNET_PRICE_MAX_AGE = { adminPriceMaxAgeSecs: 86_400, maxPriceAgeSecs: 300 } as const;
+
 /** Pyth confidence ceiling enforced in price mode 1: `conf * 10_000 <= price * MAX_CONF_BPS`, else `PriceUncertain`. */
 export const MAX_PRICE_CONF_BPS = 200;
 

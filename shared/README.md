@@ -77,8 +77,9 @@ with a 990,100 fee.
 
 ## SOL/USD and USDC buys
 
-`price.ts` mirrors `pricing.rs`. In price mode 0 the admin price in `Config` is used; in mode 1 the Pyth
-`PriceUpdateV2` account is decoded (offsets 40/41/73/89/93) and checked for feed id, positivity and age.
+`price.ts` mirrors `pricing.rs`. In price mode 0 the admin price in `Config` is used and must be younger than
+`config.adminPriceMaxAgeSecs` (86,400 s on devnet); in mode 1 the Pyth `PriceUpdateV2` account is decoded
+(offsets 40/41/73/81/89/93) and checked for feed id, positivity, age (`config.maxPriceAgeSecs`, 300 s) and confidence (<= 2 %).
 
 ```ts
 import { solUsdFromConfig, usdE6ToLamports, lamportsToUsdE6, PYTH_SOL_USD_ACCOUNT } from "@mostro/shared";
@@ -90,7 +91,8 @@ const q = quoteBuyExactIn(c.virtualSolReserves, c.virtualTokenReserves, lamports
 ```
 
 Before enabling "Buy" in mode 1, decode the Pyth account and warn if `publishTime` is older than
-`config.maxPriceAgeSecs`.
+`config.maxPriceAgeSecs`. In mode 0 pass the whole `Config` to `solUsdFromConfig` so it applies the admin age check,
+and surface `PriceTooOld` as "price refresh pending" rather than as a user error.
 
 ## Building instructions
 
@@ -136,7 +138,8 @@ const sponsored = await buildRedeemPerk(program, {
 ```
 
 When `config.kycRequired` is true pass `kyc: true` to the buy **and sell** builders so the `["kyc", wallet]` PDA is
-included; the program gates both directions with the same record. `redeem_perk` is not gated.
+included; the program gates both directions with the same record. `redeem_perk` is not gated. **Devnet has `kycRequired = true`**:
+every wallet needs an admin approval (`scripts/set-kyc.ts <wallet> true GB`) before its first buy or sell; check `fetchKyc` at connect.
 
 Send parameters (`SEND_DEFAULTS`): `setComputeUnitLimit(400_000)`, `setComputeUnitPrice(>= 1_000)`,
 `preflightCommitment: "confirmed"`. Retrying with a fresh blockhash and the same nonce is safe: the
