@@ -35,7 +35,8 @@ pub fn sol_usd(config: &Config, price_update: &AccountInfo, now: i64) -> Result<
         PRICE_MODE_ADMIN => {
             require!(config.sol_usd_price_e6 > 0, MostroError::PriceNotSet);
             require!(
-                now.saturating_sub(config.price_updated_ts) <= config.max_price_age_secs as i64,
+                now.saturating_sub(config.price_updated_ts)
+                    <= config.admin_price_max_age_secs as i64,
                 MostroError::PriceTooOld
             );
             Ok(SolUsd {
@@ -85,12 +86,17 @@ pub fn sol_usd(config: &Config, price_update: &AccountInfo, now: i64) -> Result<
 /// price * 10^(6 + expo) as u64, checked.
 pub fn scale_to_e6(price: u64, expo: i32) -> Result<u64> {
     let shift = 6 + expo;
+    let pow = |e: u32| {
+        10u128
+            .checked_pow(e)
+            .ok_or_else(|| error!(MostroError::MathOverflow))
+    };
     let v: u128 = if shift >= 0 {
         (price as u128)
-            .checked_mul(10u128.pow(shift as u32))
+            .checked_mul(pow(shift as u32)?)
             .ok_or_else(|| error!(MostroError::MathOverflow))?
     } else {
-        (price as u128) / 10u128.pow((-shift) as u32)
+        (price as u128) / pow((-shift) as u32)?
     };
     u64::try_from(v).map_err(|_| error!(MostroError::MathOverflow))
 }
