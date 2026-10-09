@@ -1,0 +1,10 @@
+{
+   "extends": "../tsconfig.json",
+   "compilerOptions": {
+      "noEmit": true,
+      "strict": true,
+      "types": ["mocha", "chai", "node"],
+      "typeRoots": ["../node_modules/@types"]
+   },
+   "include": ["src/**/*", "test/**/*", "types/**/*", "idl/*.json"]
+}

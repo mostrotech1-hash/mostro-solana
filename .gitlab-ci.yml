@@ -1,0 +1,49 @@
+# CI for the Solana programs. Frontends add their own jobs under fronts/.
+stages:
+   - check
+   - build
+
+variables:
+   CARGO_HOME: $CI_PROJECT_DIR/.cargo
+   CARGO_TERM_COLOR: always
+
+cache:
+   key: rust-$CI_COMMIT_REF_SLUG
+   paths:
+      - .cargo/registry
+      - .cargo/git
+      - target/
+
+rust-unit:
+   stage: check
+   image: rust:1.89
+   before_script:
+      - rustup component add rustfmt clippy
+   script:
+      - cargo fmt -p mostro -- --check
+      - cargo clippy -p mostro --lib -- -D warnings
+      - cargo test -p mostro --lib
+
+sdk-unit:
+   stage: check
+   image: node:24
+   variables:
+      NODE_OPTIONS: --no-experimental-strip-types
+   script:
+      - yarn install --frozen-lockfile
+      - npx tsc --noEmit -p tsconfig.json
+      - npx tsc --noEmit -p shared/tsconfig.json
+      - npx ts-mocha -p tsconfig.json shared/test/curve.test.ts shared/test/ix.test.ts
+      - npx prettier --check "shared/**/*.{ts,json}" "scripts/**/*.ts" "tests/**/*.ts"
+
+anchor-build:
+   stage: build
+   image: solanafoundation/anchor:v0.32.1
+   script:
+      - anchor build --no-idl
+      - ls -la target/deploy/mostro.so
+   artifacts:
+      paths:
+         - target/deploy/mostro.so
+      expire_in: 1 week
+   allow_failure: true
