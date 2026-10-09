@@ -2,6 +2,25 @@
 
 All notable changes to this repository. Dates are UTC-3 (Buenos Aires).
 
+## 2026-10-09 (round 2): admin price age, KYC on by default, sponsored redeem, measured costs
+
+- Review follow-ups on MR !3: `admin_price_max_age_secs` must be > 0 in `initialize_config` and `set_config` (a zero, including the zeroed reserved bytes of a config created before this field, would block every mode-0 USDC buy); `scale_to_e6` uses a checked `6 + expo` so absurd exponents return `MathOverflow` instead of panicking (unit tests added); `scripts/set-config.ts` rejects boolean values other than `true/false/1/0` instead of silently sending `false`; docs: KYC-on-devnet statement in ARCHITECTURE 2.6, priority-fee note (charged on the requested CU limit, not on consumed CU), `PriceTooOld` row, SECURITY admin-trust bullet and `set-price.ts` header updated to the mode-0 limit.
+- Integration suite: **28 passing, 0 failing** on a fresh surfpool fork of devnet (`bash scripts/test-local.sh`, run of 2026-10-09 ~10:40 ART), including the sponsor-pays case (`payer != buyer`). Local runner now wipes the cloned devnet program before deploying and bounds each deploy attempt (8 min).
+
+Program upgraded on devnet at slot 509182643 ([explorer](https://explorer.solana.com/address/6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK?cluster=devnet)), IDL upgraded on-chain. `.so` 731,640 bytes (800,000 reserved).
+
+### Changed
+
+- `Config.admin_price_max_age_secs: u32` (taken from `_reserved`, now `[u8; 56]`), `InitializeConfigArgs.admin_price_max_age_secs`, `SetConfigArgs.admin_price_max_age_secs: Option<u32>`. Price mode 0 enforces this limit against `price_updated_ts` (seeded 86,400 s); Pyth mode keeps `max_price_age_secs` (300 s). `pricing.rs::scale_to_e6` uses `checked_pow`. `@mostro/shared`: `PriceConfigLike.adminPriceMaxAgeSecs`, `solUsdFromConfig` applies it in mode 0 (falls back to `maxPriceAgeSecs` for older configs), `DEVNET_PRICE_MAX_AGE`.
+- Devnet config: `kyc_required = true`, `admin_price_max_age_secs = 86_400`; admin wallet KYC-approved ([tx](https://explorer.solana.com/tx/3mBnJaChREcNePh4GGKQeXcv8cwJUqeJu2D9pZdDpLsHoHWzJcpvAgV7jqujs6AbmzoEWCoXF1au3VCq4YXfGrwx?cluster=devnet)). Every new wallet must be approved with `scripts/set-kyc.ts <wallet> true GB` before buying or selling `$MOST`; redeems are not gated.
+
+### Added
+
+- `scripts/set-config.ts key=value ...`: generic admin switchboard over `set_config` (keys are the `SetConfigArgs` fields in camelCase).
+- `scripts/demo-sponsored.ts [perkIndex]`: a fan wallet that never holds SOL redeems a perk; the CLI wallet signs as `payer` (rent + Core fee), the fan as `buyer`. Devnet run: fan `BENZutuN6MDtLHCYVagZtMWqdr4YncyYcZ92oMJo8sfQ`, [funding tx](https://explorer.solana.com/tx/3wTmLSFmSsFFAdKwzK65w1mFazXiNAXFQhQFHWxfLZ3RFnZ29QBcVWTk9pSGRWF633oJh67stmWvpgRVC9DhRJnx?cluster=devnet), [redeem tx](https://explorer.solana.com/tx/4kb1hVAH1dPvM8dBrB2ZumCddM62aSe46mkS7X51cqfCSeh8QDP9Xz5RSRGbY9bDtUq2cs5TLhQ1fbFgyDnbTBZJ?cluster=devnet), asset [`6Y93pRA2N2WferK9iw1t7CDUoWjpmTrDMwUVUZ9NC49c`](https://explorer.solana.com/address/6Y93pRA2N2WferK9iw1t7CDUoWjpmTrDMwUVUZ9NC49c?cluster=devnet); fan SOL balance 0 before and after.
+- Measured on devnet ([redeem with the 5% pass discount](https://explorer.solana.com/tx/3gAt6NB9cNwr8bf3UpoqMmens4vzYu3AocQAHTsbT5csRBqH6GvgEhCApTdp2u1yBf7VcUsWX9KX6BX3Hq5AAH6o?cluster=devnet), pass asset [`8V69nD…83q6m`](https://explorer.solana.com/address/8V69nDgc24kERDDyMLQgeGAjNttxUa4KZBwJLXT83q6m?cluster=devnet)): `redeem_perk` 109,290 CU total (program 108,990; Core `CreateV2` 25,116); payer cost 0.00544748 SOL = receipt rent 0.00196596 + Core asset rent and fee 0.00347612 + transaction fee. FRONTEND.md and the READMEs now carry these instead of estimates.
+- Docs: FRONTEND.md "Devnet state" table and KYC onboarding steps; ARCHITECTURE.md 2.11 "Regulatory design" (gate scope, pause scope, admin powers, no PII, country not enforced) and the "can I get my money back?" answer; limitations for placeholder metadata URIs, `set_perk(max_supply)` not updating the collection `MasterEdition`, single admin hot key.
+
 ## 2026-10-09: devnet deployment
 
 - Program `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK` deployed to devnet (slot 509161236, 800 000 bytes reserved), IDL published on-chain.

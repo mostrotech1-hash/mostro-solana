@@ -20,6 +20,7 @@ pub struct InitializeConfigArgs {
     pub admin_cooloff_secs: u32,
     pub min_burn_bps: u16,
     pub min_rewards_bps: u16,
+    pub admin_price_max_age_secs: u32,
 }
 
 #[derive(Accounts)]
@@ -62,6 +63,10 @@ pub fn initialize_config(ctx: Context<InitializeConfig>, args: InitializeConfigA
         args.min_burn_bps as u64 + args.min_rewards_bps as u64 <= BPS_DENOMINATOR,
         MostroError::InvalidBps
     );
+    require!(
+        args.admin_price_max_age_secs > 0,
+        MostroError::InvalidAmount
+    );
     // Rent-floor the treasury so fee transfers smaller than the floor never fail.
     transfer(
         CpiContext::new(
@@ -100,6 +105,7 @@ pub fn initialize_config(ctx: Context<InitializeConfig>, args: InitializeConfigA
     c.artist_count = 0;
     c.min_burn_bps = args.min_burn_bps;
     c.min_rewards_bps = args.min_rewards_bps;
+    c.admin_price_max_age_secs = args.admin_price_max_age_secs;
     emit!(ConfigInitialized {
         admin: c.admin,
         usdc_mint: c.usdc_mint,
@@ -124,6 +130,7 @@ pub struct SetConfigArgs {
     pub vip_early_secs: Option<u32>,
     pub min_burn_bps: Option<u16>,
     pub min_rewards_bps: Option<u16>,
+    pub admin_price_max_age_secs: Option<u32>,
 }
 
 #[derive(Accounts)]
@@ -186,6 +193,10 @@ pub fn set_config(ctx: Context<AdminOnly>, args: SetConfigArgs) -> Result<()> {
     );
     c.min_burn_bps = min_burn;
     c.min_rewards_bps = min_rewards;
+    if let Some(v) = args.admin_price_max_age_secs {
+        require!(v > 0, MostroError::InvalidAmount);
+        c.admin_price_max_age_secs = v;
+    }
     emit!(ConfigUpdated {
         admin: c.admin,
         paused: c.paused,

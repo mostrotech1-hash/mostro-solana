@@ -74,7 +74,9 @@ pub struct Config {
     /// Floors every perk's split must respect (protects protocol economics from artists).
     pub min_burn_bps: u16,
     pub min_rewards_bps: u16,
-    pub _reserved: [u8; 60],
+    /// Max age of the admin-set SOL/USD price (mode 0). Pyth mode uses `max_price_age_secs`.
+    pub admin_price_max_age_secs: u32,
+    pub _reserved: [u8; 56],
 }
 
 /// A bonding curve for one token mint (the first one is $MOST). PDA `["curve", index_le]`.

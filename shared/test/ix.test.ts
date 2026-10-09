@@ -401,16 +401,16 @@ describe("ix.ts resolves every account in IDL order", () => {
    });
 
    it("config args carry the split floors and Config stores them", () => {
-      expect(typeFields("InitializeConfigArgs").slice(-2)).to.deep.equal(["minBurnBps", "minRewardsBps"]);
-      expect(typeFields("SetConfigArgs").slice(-2)).to.deep.equal(["minBurnBps", "minRewardsBps"]);
+      expect(typeFields("InitializeConfigArgs").slice(-3)).to.deep.equal(["minBurnBps", "minRewardsBps", "adminPriceMaxAgeSecs"]);
+      expect(typeFields("SetConfigArgs").slice(-3)).to.deep.equal(["minBurnBps", "minRewardsBps", "adminPriceMaxAgeSecs"]);
       const cfg = typeFields("Config");
       expect(cfg).to.include("minBurnBps");
       expect(cfg).to.include("minRewardsBps");
-      // The two u16 came out of the padding: `_reserved` shrank from 64 to 60 bytes, so Config's size is unchanged.
+      // The two u16 and the u32 came out of the padding: `_reserved` shrank from 64 to 56 bytes, so Config's size is unchanged.
       const raw = idlJson.types.find((t) => t.name === "Config") as unknown as { type: { fields: { name: string; type: unknown }[] } };
       const reserved = raw.type.fields[raw.type.fields.length - 1];
       expect(reserved.name).to.equal("_reserved");
-      expect(reserved.type).to.deep.equal({ array: ["u8", 60] });
+      expect(reserved.type).to.deep.equal({ array: ["u8", 56] });
    });
 
    it("checkPerkSplit and canCreatePerk mirror create_perk gating", () => {
