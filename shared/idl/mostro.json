@@ -2378,9 +2378,14 @@
                   "type": "u16"
                },
                {
+                  "name": "admin_price_max_age_secs",
+                  "docs": ["Max age of the admin-set SOL/USD price (mode 0). Pyth mode uses `max_price_age_secs`."],
+                  "type": "u32"
+               },
+               {
                   "name": "_reserved",
                   "type": {
-                     "array": ["u8", 60]
+                     "array": ["u8", 56]
                   }
                }
             ]
@@ -2704,6 +2709,10 @@
                {
                   "name": "min_rewards_bps",
                   "type": "u16"
+               },
+               {
+                  "name": "admin_price_max_age_secs",
+                  "type": "u32"
                }
             ]
          }
@@ -3313,6 +3322,12 @@
                   "name": "min_rewards_bps",
                   "type": {
                      "option": "u16"
+                  }
+               },
+               {
+                  "name": "admin_price_max_age_secs",
+                  "type": {
+                     "option": "u32"
                   }
                }
             ]

@@ -74,6 +74,7 @@ const CONFIG_ARGS = {
    // Protocol floors for every perk split. 0 / 0 on devnet so artists can experiment; raise with set_config.
    minBurnBps: 0,
    minRewardsBps: 0,
+   adminPriceMaxAgeSecs: 86_400,
 };
 
 /** Curve demo params "set B": 30 SOL virtual, 1,000,000 tokens virtual, cap 800,000 tokens. */
@@ -206,6 +207,7 @@ async function ensureConfig(ctx: Ctx, usdcMint: PublicKey): Promise<void> {
          adminCooloffSecs: CONFIG_ARGS.adminCooloffSecs,
          minBurnBps: CONFIG_ARGS.minBurnBps,
          minRewardsBps: CONFIG_ARGS.minRewardsBps,
+         adminPriceMaxAgeSecs: CONFIG_ARGS.adminPriceMaxAgeSecs,
       })
       .accountsStrict({
          payer: ctx.wallet.publicKey,

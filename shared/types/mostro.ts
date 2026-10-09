@@ -2384,9 +2384,14 @@ export type Mostro = {
                   type: "u16";
                },
                {
+                  name: "adminPriceMaxAgeSecs";
+                  docs: ["Max age of the admin-set SOL/USD price (mode 0). Pyth mode uses `max_price_age_secs`."];
+                  type: "u32";
+               },
+               {
                   name: "reserved";
                   type: {
-                     array: ["u8", 60];
+                     array: ["u8", 56];
                   };
                },
             ];
@@ -2710,6 +2715,10 @@ export type Mostro = {
                {
                   name: "minRewardsBps";
                   type: "u16";
+               },
+               {
+                  name: "adminPriceMaxAgeSecs";
+                  type: "u32";
                },
             ];
          };
@@ -3319,6 +3328,12 @@ export type Mostro = {
                   name: "minRewardsBps";
                   type: {
                      option: "u16";
+                  };
+               },
+               {
+                  name: "adminPriceMaxAgeSecs";
+                  type: {
+                     option: "u32";
                   };
                },
             ];
