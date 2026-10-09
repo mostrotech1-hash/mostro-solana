@@ -38,7 +38,7 @@ for acc in "$PROGRAM_ID" "$PROGRAM_DATA"; do
 done
 deployed=0
 for attempt in 1 2 3; do
-   if solana program deploy target/deploy/mostro.so --program-id target/deploy/mostro-keypair.json -k "$WALLET" -u "$RPC" --use-rpc >/dev/null 2>&1; then deployed=1; break; fi
+   if timeout 480 solana program deploy target/deploy/mostro.so --program-id target/deploy/mostro-keypair.json -k "$WALLET" -u "$RPC" --use-rpc >/dev/null 2>&1; then deployed=1; break; fi
    echo "deploy attempt $attempt failed, retrying"; sleep 5
 done
 if [[ $deployed -ne 1 ]]; then echo "could not deploy to surfpool"; exit 1; fi

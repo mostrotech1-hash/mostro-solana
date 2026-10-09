@@ -75,6 +75,7 @@ const cfgArgs = (partial: Record<string, unknown>) => ({
    vipEarlySecs: null,
    minBurnBps: null,
    minRewardsBps: null,
+   adminPriceMaxAgeSecs: null,
    ...partial,
 });
 
@@ -228,6 +229,7 @@ describe("mostro", () => {
             adminCooloffSecs: 2,
             minBurnBps: 0,
             minRewardsBps: 0,
+            adminPriceMaxAgeSecs: 86_400,
          })
          .accountsPartial({
             payer: admin.publicKey,
@@ -739,6 +741,51 @@ describe("mostro", () => {
       expect(p.sold).to.eq(1);
    });
 
+   it("lets a sponsor pay rent and fees for a buyer with no SOL (payer != buyer)", async () => {
+      const fan = Keypair.generate(); // 0 SOL, ever
+      // give the fan 1,200 $MOST from the buyer (sponsor creates the ATA)
+      const { createAssociatedTokenAccountInstruction, createTransferInstruction } = await import("@solana/spl-token");
+      const tx = new anchor.web3.Transaction().add(
+         createAssociatedTokenAccountInstruction(buyer.publicKey, ata(fan.publicKey), fan.publicKey, mint),
+         createTransferInstruction(ata(buyer.publicKey), ata(fan.publicKey), buyer.publicKey, 1_200 * TOKEN),
+      );
+      await buyExactOut(buyer, new BN(1_200 * TOKEN));
+      await provider.sendAndConfirm(tx, [buyer]);
+      const perk = perkPda(PASS_STD);
+      const nonce = nextNonce();
+      const asset = assetPda(perk, nonce);
+      const sponsorBefore = await conn.getBalance(other.publicKey);
+      await program.methods
+         .redeemPerk(nonce, new BN(1_200 * TOKEN))
+         .accountsPartial({
+            payer: other.publicKey,
+            buyer: fan.publicKey,
+            config,
+            artist,
+            perk,
+            curve,
+            mint,
+            buyerAta: ata(fan.publicKey),
+            rewardsVault,
+            artistVault,
+            collection: collectionPda(perk),
+            asset,
+            receipt: receiptPda(asset),
+            passAsset: null,
+            passPerk: null,
+            mplCoreProgram: MPL_CORE,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+         })
+         .preInstructions([anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 })])
+         .signers([other, fan])
+         .rpc();
+      expect(await conn.getBalance(fan.publicKey)).to.eq(0);
+      expect(await conn.getBalance(other.publicKey)).to.be.lessThan(sponsorBefore);
+      const a = await fetchAsset(umi, umiPk(asset.toBase58()));
+      expect(a.owner.toString()).to.eq(fan.publicKey.toBase58());
+   });
+
    it("rejects a redeem above the buyer's max_paid (front-running guard)", async () => {
       await expectError(redeem(buyer, MUSIC, undefined, new BN(1)), "SlippageExceeded");
    });
@@ -915,7 +962,7 @@ describe("mostro", () => {
             .accountsPartial({ ...buyAccounts(buyer.publicKey), kyc: kycPda(other.publicKey) })
             .signers([buyer])
             .rpc(),
-         "ConstraintSeeds",
+         "KycRequired",
       );
       await program.methods
          .setConfig(cfgArgs({ kycRequired: false }) as any)
@@ -992,11 +1039,12 @@ describe("mostro", () => {
          const owners = await conn.getMultipleParsedAccounts(largest.value.map((x) => x.address));
          holders = owners.value.map((a, i) => ({ owner: (a?.data as any).parsed.info.owner as string, amount: largest.value[i].uiAmount ?? 0 }));
       } catch (e) {
-         // surfpool does not implement getTokenLargestAccounts; fall back to a program-accounts scan
-         const accounts = await conn.getParsedProgramAccounts(TOKEN_PROGRAM_ID, {
-            filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: mint.toBase58() } }],
-         });
-         holders = accounts.map((a) => ({ owner: (a.account.data as any).parsed.info.owner as string, amount: (a.account.data as any).parsed.info.tokenAmount.uiAmount ?? 0 }));
+         // surfpool implements neither getTokenLargestAccounts nor getProgramAccounts for the token program;
+         // read the known holders directly so the suite still checks the data path.
+         const accounts = await conn.getMultipleParsedAccounts([ata(buyer.publicKey), ata(other.publicKey), rewardsVault, artistVault]);
+         holders = accounts.value
+            .filter(Boolean)
+            .map((a) => ({ owner: (a!.data as any).parsed.info.owner as string, amount: (a!.data as any).parsed.info.tokenAmount.uiAmount ?? 0 }));
       }
       holders = holders.filter((h) => h.owner !== curve.toBase58() && h.owner !== artist.toBase58()).sort((a, b) => b.amount - a.amount);
       expect(holders.map((h) => h.owner)).to.include(buyer.publicKey.toBase58());
