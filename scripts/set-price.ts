@@ -61,10 +61,10 @@ run(async () => {
    log("current mode", config.priceMode);
    log("current admin price", `$${fmtUnits(config.solUsdPriceE6, 6)}`);
    const adminAge = nowTs() - config.priceUpdatedTs.toNumber();
-   log("admin price age", `${adminAge}s${adminAge > config.maxPriceAgeSecs ? " (STALE: USDC buys in mode 0 fail with PriceTooOld)" : ""}`);
+   log("admin price age", `${adminAge}s${adminAge > config.adminPriceMaxAgeSecs ? " (STALE: USDC buys in mode 0 fail with PriceTooOld)" : ""}`);
    log("pyth account", config.pythSolUsdAccount);
-   log("max price age", `${config.maxPriceAgeSecs}s`);
-   if (mode === PRICE_MODE_ADMIN && priceE6 === null && adminAge > config.maxPriceAgeSecs) {
+   log("max price age", `${config.adminPriceMaxAgeSecs}s`);
+   if (mode === PRICE_MODE_ADMIN && priceE6 === null && adminAge > config.adminPriceMaxAgeSecs) {
       warn(`mode 0 without a price keeps price_updated_ts at ${adminAge}s old; pass a priceUsd to refresh it.`);
    }
 
@@ -104,6 +104,7 @@ run(async () => {
          vipEarlySecs: null,
          minBurnBps: null,
          minRewardsBps: null,
+         adminPriceMaxAgeSecs: null,
       })
       .accountsStrict({
          admin: ctx.wallet.publicKey,
@@ -117,6 +118,6 @@ run(async () => {
    section("Config after");
    log("price mode", after.priceMode);
    log("admin price", `$${fmtUnits(after.solUsdPriceE6, 6)}`);
-   log("price updated", `${new Date(after.priceUpdatedTs.toNumber() * 1000).toISOString()} (valid for ${after.maxPriceAgeSecs}s in mode 0)`);
+   log("price updated", `${new Date(after.priceUpdatedTs.toNumber() * 1000).toISOString()} (valid for ${after.adminPriceMaxAgeSecs}s in mode 0)`);
    log("pyth account", after.pythSolUsdAccount);
 });
