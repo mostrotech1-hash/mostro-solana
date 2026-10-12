@@ -6,6 +6,7 @@
    },
    "workspaces": [
       "shared",
+      "back",
       "fronts/*"
    ],
    "scripts": {
@@ -15,7 +16,13 @@
       "test:programs": "anchor test --skip-local-validator --provider.cluster localnet",
       "test:unit": "cargo test -p mostro --lib",
       "seed:devnet": "ts-node scripts/seed-devnet.ts",
-      "export:shared": "bash scripts/export-shared.sh"
+      "export:shared": "bash scripts/export-shared.sh",
+      "dev:fronts": "node scripts/dev-fronts.mjs",
+      "dev:back": "yarn workspace @mostro/back dev",
+      "db:up": "docker compose -f docker-local/docker-compose.yml up -d --wait db",
+      "db:migrate": "docker compose -f docker-local/docker-compose.yml run --rm flyway-init && docker compose -f docker-local/docker-compose.yml run --rm flyway-app",
+      "db:down": "docker compose -f docker-local/docker-compose.yml down",
+      "typecheck": "yarn workspace @mostro/back typecheck && yarn workspace @app/front-nuxt typecheck"
    },
    "devDependencies": {
       "prettier": "^3.8.4",
