@@ -1,0 +1,26 @@
+{
+   "name": "@app/front-nuxt",
+   "version": "1.0.0",
+   "private": true,
+   "type": "module",
+   "scripts": {
+      "dev": "nuxt dev",
+      "build": "nuxt build",
+      "generate": "nuxt generate",
+      "preview": "nuxt preview",
+      "typecheck": "nuxt typecheck"
+   },
+   "dependencies": {
+      "@moonpay/moonpay-js": "^0.7.6",
+      "@mostro/shared": "0.1.0",
+      "@mostro/ui": "1.0.0",
+      "@openfort/openfort-js": "^2.6.1",
+      "@pinia/nuxt": "^1.0.2",
+      "pinia": "^4.0.3"
+   },
+   "devDependencies": {
+      "nuxt": "^4.6.0",
+      "typescript": "~5.9.3",
+      "vue-tsc": "^3.3.12"
+   }
+}

@@ -10,7 +10,8 @@
       ".": "./src/index.ts",
       "./idl": "./idl/mostro.json",
       "./types": "./types/mostro.ts",
-      "./addresses/devnet": "./addresses/devnet.json"
+      "./addresses/devnet": "./addresses/devnet.json",
+      "./api": "./src/api/index.ts"
    },
    "files": [
       "src",
