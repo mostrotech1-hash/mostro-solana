@@ -31,3 +31,14 @@ test-ledger/
 # Local runtime data (never committed)
 back/storage/
 docker-local/docker-data/
+video/node_modules/
+video/.auth/
+video/out/
+video/frames/
+
+# Vercel staging
+/back/deploy/
+/back/dist/
+
+# Local secrets
+.env.keys

@@ -60,6 +60,18 @@ export class OpenfortService {
       return "email";
    }
 
+   /** True only when `address` is one of this user's own Openfort Solana wallets: the sponsor never pays for a wallet the user does not own. */
+   async ownsSolanaWallet(openfortId: string, address: string): Promise<boolean> {
+      const client = this.getClient();
+      try {
+         const list = await client.accounts.list({ user: openfortId, chainType: "SVM", address, limit: 5 } as never);
+         return list.data.some((account) => account.address === address);
+      } catch (err) {
+         this.logger.warn(`Could not check wallet ownership: ${describe(err)}`);
+         return false;
+      }
+   }
+
    /** Shield "automatic recovery" session: lets the front create the embedded wallet without asking the user for a password. */
    async createEncryptionSession(): Promise<string> {
       const client = this.getClient();

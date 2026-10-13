@@ -8,18 +8,22 @@
       "build": "nuxt build",
       "generate": "nuxt generate",
       "preview": "nuxt preview",
-      "typecheck": "nuxt typecheck"
+      "typecheck": "nuxt typecheck",
+      "test": "tsx --test test/*.test.ts"
    },
    "dependencies": {
       "@moonpay/moonpay-js": "^0.7.6",
       "@mostro/shared": "0.1.0",
       "@mostro/ui": "1.0.0",
+      "@noble/curves": "1.9.7",
       "@openfort/openfort-js": "^2.6.1",
       "@pinia/nuxt": "^1.0.2",
       "pinia": "^4.0.3"
    },
    "devDependencies": {
+      "@solana/web3.js": "^1.98.0",
       "nuxt": "^4.6.0",
+      "tsx": "4.20.0",
       "typescript": "~5.9.3",
       "vue-tsc": "^3.3.12"
    }

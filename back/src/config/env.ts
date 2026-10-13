@@ -19,8 +19,17 @@ const schema = z.object({
    MOONPAY_BASE_CURRENCY: z.string().default("usd"),
    /** Your own public IP, for local development only: MoonPay checks the buyer IP and this API only sees localhost. */
    MOONPAY_DEV_CLIENT_IP: z.string().optional(),
-   /** Sponsor keypair (JSON array) that co-signs user transactions as `payer`. Used by the blockchain task. */
+   /** Sponsor keypair (JSON array) that pays the fees and is the `payer` of the pass purchase. Server-only. */
    SPONSOR_SECRET_KEY: z.string().optional(),
+   /** The demo runs on Solana devnet only: any other value is refused at startup. */
+   SOLANA_CLUSTER: z.literal("devnet").default("devnet"),
+   SOLANA_RPC_URL: z.string().default("https://api.devnet.solana.com"),
+   /** Devnet only: when the buyer's wallet is short of SOL, the sponsor tops it up (MoonPay test mode delivers 1/100 of the amount). */
+   DEVNET_TOPUP_ENABLED: z.enum(["true", "false"]).default("true"),
+   /** Devnet only: the SOL one top-up sends. 0.15 SOL = the minimum MoonPay sells, so the demo wallet looks like a real card purchase. */
+   DEVNET_TOPUP_LAMPORTS: z.coerce.number().int().min(1).max(1_000_000_000).default(150_000_000),
+   /** When "true", a wallet that already owns the demo pass cannot buy a second one. Off by default so the demo can be repeated. */
+   ENFORCE_ONE_PASS_PER_WALLET: z.enum(["true", "false"]).default("false"),
    AVATARS_DIR: z.string().default(join(process.cwd(), "storage", "avatars")),
 });
 
