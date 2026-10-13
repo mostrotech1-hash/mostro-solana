@@ -4,6 +4,7 @@ All notable changes to this repository. Dates are UTC-3 (Buenos Aires).
 
 ## 2026-10-09 (round 2): admin price age, KYC on by default, sponsored redeem, measured costs
 
+- `scripts/demo-one-tx.ts`: the post-card step as ONE transaction (`buy_tokens_exact_out_sol` for the pass price + `redeem_perk`), buyer as the only user signer. Devnet run: 139,061 CU, 878-byte legacy transaction, tx 2T5T4Ctjmby6GyiiKhd4anVMK1r4nrjYeY2M1aBC5wUG6op2mKSCrUNontvhxXGMuzbwB5k6dryVCEqonSTR9pHG, asset wK1JY1qY84DMD7Eax12TwU47vhJK5eBcRTZ8dWGF9zH.
 - Review follow-ups on MR !3: `admin_price_max_age_secs` must be > 0 in `initialize_config` and `set_config` (a zero, including the zeroed reserved bytes of a config created before this field, would block every mode-0 USDC buy); `scale_to_e6` uses a checked `6 + expo` so absurd exponents return `MathOverflow` instead of panicking (unit tests added); `scripts/set-config.ts` rejects boolean values other than `true/false/1/0` instead of silently sending `false`; docs: KYC-on-devnet statement in ARCHITECTURE 2.6, priority-fee note (charged on the requested CU limit, not on consumed CU), `PriceTooOld` row, SECURITY admin-trust bullet and `set-price.ts` header updated to the mode-0 limit.
 - Integration suite: **28 passing, 0 failing** on a fresh surfpool fork of devnet (`bash scripts/test-local.sh`, run of 2026-10-09 ~10:40 ART), including the sponsor-pays case (`payer != buyer`). Local runner now wipes the cloned devnet program before deploying and bounds each deploy attempt (8 min).
 
