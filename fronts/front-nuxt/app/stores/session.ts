@@ -33,6 +33,12 @@ export const useSessionStore = defineStore("session", () => {
       return apiFetch<T>(config.public.apiBase, await client().getAccessToken(), path, options);
    }
 
+   /** Everything the pass purchase needs from the signed-in user (wallet, Openfort signer, API, devnet RPC). */
+   function purchaseContext(onSubmitted?: (signature: string) => void): PurchaseContext {
+      if (!walletAddress.value) throw new PurchaseError("Your Mostro wallet is not ready. Please sign in again.", "wallet");
+      return { openfort: client(), rpcUrl: config.public.solanaRpcUrl, walletAddress: walletAddress.value, api, onSubmitted };
+   }
+
    /** Restores the session on page load. Safe to call from every page. */
    function init(): Promise<void> {
       initPromise ??= (async () => {
@@ -127,6 +133,8 @@ export const useSessionStore = defineStore("session", () => {
       profile.value = null;
       walletAddress.value = null;
       needsRetry.value = false;
+      usePurchaseStore().reset();
+      usePurchaseStore().owned = null;
       error.value = "";
    }
 
@@ -147,6 +155,7 @@ export const useSessionStore = defineStore("session", () => {
       saveName,
       uploadAvatar,
       api,
+      purchaseContext,
       logout,
    };
 });

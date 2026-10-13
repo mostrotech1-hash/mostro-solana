@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// H05 · Payment in progress. The card payment is done; now the app uses the SOL to mint the pass (blockchain task).
+// H05 · Payment in progress. The wallet signs the purchase and it is sent to Solana devnet.
 // After about 30 seconds without confirmation it becomes H09 (slower than usual), never an error.
 const SLOW_AFTER_MS = 30_000;
 const session = useSessionStore();
@@ -14,11 +14,21 @@ async function leave(path: string) {
 }
 
 onMounted(async () => {
+   // Opened without confirming a price (e.g. the page was reloaded): nothing is built or signed.
+   if (!purchase.approvedMaxLamportsIn) return leave("/pass");
+   // One purchase at a time: a second one is never started while this one is running.
+   if (purchase.inProgress) return;
+   purchase.inProgress = true;
+
    timer = setTimeout(() => leave("/pass/slow"), SLOW_AFTER_MS);
    try {
-      const result = await mintPassWithSol({ walletAddress: session.walletAddress ?? "", priceSol: PASS.priceSol });
+      const ctx = session.purchaseContext((signature) => {
+         purchase.signature = signature;
+         purchase.result = { status: "pending", signature };
+      });
+      const result = await mintPassWithSol(ctx, { approvedMaxLamportsIn: purchase.approvedMaxLamportsIn });
       purchase.result = result;
-      if (leaving) return;
+      if (leaving && result.status === "pending") return; // the slow screen keeps checking
       if (result.status === "confirmed") await leave("/pass/success");
       else if (result.status === "failed") {
          purchase.failureReason = result.reason;
@@ -26,9 +36,12 @@ onMounted(async () => {
       }
       // "pending": keep waiting here; the timer moves to H09.
    } catch (error) {
-      console.error("[mostro] mint failed", error);
+      console.error("[mostro] purchase failed", error);
+      if (error instanceof PurchaseError && error.quote) purchase.quote = error.quote;
       purchase.failureReason = error instanceof Error ? error.message : "Something went wrong.";
-      if (!leaving) await leave("/pass/cancelled");
+      await leave("/pass/cancelled");
+   } finally {
+      purchase.inProgress = false;
    }
 });
 onBeforeUnmount(() => clearTimeout(timer));

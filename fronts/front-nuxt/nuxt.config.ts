@@ -22,6 +22,8 @@ export default defineNuxtConfig({
          apiBase: "http://localhost:3100",
          // Cluster used for explorer links. NUXT_PUBLIC_SOLANA_CLUSTER: devnet | testnet | mainnet-beta
          solanaCluster: "devnet",
+         // Solana devnet RPC used to send and confirm the pass purchase. NUXT_PUBLIC_SOLANA_RPC_URL (public RPC, no secret).
+         solanaRpcUrl: "https://api.devnet.solana.com",
       },
    },
 });

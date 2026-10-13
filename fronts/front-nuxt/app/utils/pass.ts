@@ -1,17 +1,13 @@
+import type { PassQuote } from "@mostro/shared/api";
+
 /**
- * Hardcoded hackathon pass, as in the Figma screens (H03 to H06). Names, price and supply are the design's
- * placeholders. TODO(blockchain task): read supply, sold count and the wallet balance from the chain.
+ * Copy of the pass, as in the Figma screens (H03 to H06). The price, supply and balance are NOT here: they are read
+ * live (price from the bonding curve through the API, balance from Solana devnet).
  */
 export const PASS = {
    name: "MoOG Pass · Solana Edition",
    edition: "Hackathon edition",
    description: "Your Mostro membership, minted on Solana for the hackathon. Limit one per person.",
-   priceSol: 0.5,
-   priceUsd: 72,
-   networkFeeSol: 0.000005,
-   networkFeeUsd: 0.001,
-   supply: 500,
-   left: 312,
    perks: [
       { label: "Members-only Discord channel", value: "Included" },
       { label: "Early access to new drops", value: "24 hours early" },
@@ -24,9 +20,38 @@ export const PASS = {
    ],
 } as const;
 
-/** Placeholder numbers shown until the wallet is read from the chain. */
-export const PLACEHOLDER_WALLET_BALANCE_SOL = 1.2;
-export const PLACEHOLDER_PASS_NUMBER = "#0189 of 500";
+/** The least SOL a wallet account keeps after a trade (rent-exempt minimum of a system account). */
+export const WALLET_RENT_FLOOR_LAMPORTS = 890_880n;
+
+const LAMPORTS_PER_SOL = 1_000_000_000n;
+
+/** Lamports to a SOL string with up to `decimals` digits, rounded UP so a price is never understated. */
+export function formatSol(lamports: bigint | string, decimals = 4): string {
+   const value = BigInt(lamports);
+   const scale = 10n ** BigInt(9 - decimals);
+   const rounded = (value + scale - 1n) / scale;
+   const whole = rounded / 10n ** BigInt(decimals);
+   const fraction = (rounded % 10n ** BigInt(decimals)).toString().padStart(decimals, "0").replace(/0+$/, "");
+   return fraction ? `${whole}.${fraction}` : `${whole}`;
+}
+
+/** Rough dollar value, only when the program publishes its own SOL price. */
+export function formatUsd(lamports: bigint | string, quote: PassQuote | null): string | null {
+   if (!quote?.usdPerSolE6) return null;
+   const cents = (BigInt(lamports) * BigInt(quote.usdPerSolE6) * 100n) / (LAMPORTS_PER_SOL * 1_000_000n);
+   const dollars = Number(cents) / 100;
+   return dollars < 0.01 ? "< $0.01" : `$${dollars.toFixed(2)}`;
+}
+
+/** What the wallet must hold: the approved ceiling plus the rent floor the account keeps. */
+export function requiredLamports(quote: PassQuote): bigint {
+   return BigInt(quote.maxLamportsIn) + WALLET_RENT_FLOOR_LAMPORTS;
+}
+
+export function passesLeft(quote: PassQuote | null): number | null {
+   if (!quote || quote.pass.maxSupply === 0) return null;
+   return Math.max(quote.pass.maxSupply - quote.pass.sold, 0);
+}
 
 export function shortAddress(address: string): string {
    return address.length > 10 ? `${address.slice(0, 4)}…${address.slice(-3)}` : address;

@@ -21,10 +21,28 @@ Mostro on Solana: on-chain programs, a web front, and a small API (`back/`) that
 
 1. **Sign in** with Google, Apple, X or an email code (six boxes). A Mostro wallet is created on Solana automatically (Openfort embedded wallet, automatic recovery, no password).
 2. **Profile**: display name and optional picture, saved by the API (`mostro_app.users`, avatars in `back/storage/avatars/<userId>/`).
-3. **The pass**: "Buy with SOL" opens the confirmation, "Confirm and pay" opens the **MoonPay** card window. The only way to pay is by card: MoonPay delivers SOL to the user's own wallet.
-4. **Paying / still working / success / cancelled**: the screens after the card payment. The step that uses that SOL to mint the pass through the bonding curve is **not connected yet**: it is a stub in `fronts/front-nuxt/app/utils/pass-purchase.ts`, with a comment that says what to fill in. The success screen opens only after that step returns `confirmed`; in development, `/pass/success?preview=1` shows it with placeholder data for design review.
+3. **The pass**: the page shows the live SOL price of the pass (1,200 $MOST, read from the bonding curve by the API) and the wallet balance (read from devnet). "Confirm" fixes the price the user approved (about 1% slippage on top). If the wallet already holds enough SOL the purchase starts; if not, the **MoonPay** card window opens first (and on devnet the API tops up the difference from the sponsor wallet, because the sandbox pays out 1/100).
+4. **Paying / still working / success / cancelled**: one atomic **sponsored** transaction on devnet buys exactly 1,200 $MOST and redeems the pass. The API builds it and signs as sponsor (pays the fee and the rent), the user's Openfort wallet signs as buyer, the browser sends it and waits for confirmation, and the API verifies the redemption (`/pass/purchase/result`). The success screen opens only after that; in development, `/pass/success?preview=1` shows it with placeholder data for design review.
 
-Network: Solana devnet. MoonPay test mode only offers native SOL and delivers 1/100th of the quoted amount.
+Network: Solana **devnet** only. MoonPay test mode only offers native SOL and delivers 1/100th of the quoted amount.
+
+### The sponsored pass purchase
+
+```
+browser                         API (back/)                         Solana devnet
+  | GET /pass/quote  ------------> live curve quote (never fixed)
+  | user confirms: approvedMaxLamportsIn
+  | POST /pass/purchase/build --> checks wallet ownership, recomputes the quote, refuses if above the approval,
+  |                               builds [setComputeUnitLimit 250k, buy_tokens_exact_out_sol, redeem_perk],
+  |                               fresh blockhash last, inspects it, sponsor signs, returns it
+  | checks the transaction again, Openfort wallet signs (signature verified locally)
+  | sendTransaction ------------------------------------------------> simulated, executed
+  | polls the signature status ------------------------------------->
+  | POST /pass/purchase/result -> reads the confirmed transaction, finds redeem_perk and the receipt
+  | success screen + explorer link
+```
+
+The sponsor key (`SPONSOR_SECRET_KEY`) only exists in `back/.env`. The API signs nothing but this one transaction shape (an inspector rejects any other program, instruction order, payer, amount or fee payer), rate limits per user, and keeps a reserve in the sponsor wallet. Tests: `yarn workspace @mostro/back test` (reads live devnet, sends nothing), `yarn workspace @app/front-nuxt test`; `yarn workspace @mostro/back e2e:devnet` runs a real purchase with a throwaway buyer (spends about 0.05 devnet SOL from the sponsor).
 
 ## Run it locally
 

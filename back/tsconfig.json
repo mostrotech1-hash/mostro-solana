@@ -15,5 +15,5 @@
          "@mostro/shared/api": ["../shared/src/api/index.ts"]
       }
    },
-   "include": ["src/**/*"]
+   "include": ["src/**/*", "test/**/*", "scripts/**/*"]
 }

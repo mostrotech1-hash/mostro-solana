@@ -7,16 +7,28 @@ const purchase = usePurchaseStore();
 const config = useRuntimeConfig();
 let poll: ReturnType<typeof setInterval> | undefined;
 
-const explorerUrl = computed(() => `https://explorer.solana.com/address/${session.walletAddress}?cluster=${config.public.solanaCluster}`);
+const explorerUrl = computed(() =>
+   purchase.signature
+      ? `https://explorer.solana.com/tx/${purchase.signature}?cluster=${config.public.solanaCluster}`
+      : `https://explorer.solana.com/address/${session.walletAddress}?cluster=${config.public.solanaCluster}`,
+);
+let checking = false;
 
 async function check() {
-   const signature = purchase.result?.status === "pending" ? purchase.result.signature : undefined;
-   const result = await getMintStatus(signature);
-   purchase.result = result;
-   if (result.status === "confirmed") await navigateTo("/pass/success", { replace: true });
-   else if (result.status === "failed") {
-      purchase.failureReason = result.reason;
-      await navigateTo("/pass/cancelled", { replace: true });
+   // The purchase is still being signed or sent: nothing to look up yet.
+   if (!purchase.signature || checking || !session.walletAddress) return;
+   checking = true;
+   try {
+      const result = await getMintStatus({ api: session.api, walletAddress: session.walletAddress }, purchase.signature);
+      if (result.status === "pending") return;
+      purchase.result = result;
+      if (result.status === "confirmed") await navigateTo("/pass/success", { replace: true });
+      else {
+         purchase.failureReason = result.reason;
+         await navigateTo("/pass/cancelled", { replace: true });
+      }
+   } finally {
+      checking = false;
    }
 }
 

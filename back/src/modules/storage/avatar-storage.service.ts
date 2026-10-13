@@ -1,5 +1,6 @@
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { put } from "@vercel/blob";
 import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
 import { ENV, type Env } from "../../config/env";
 
@@ -16,6 +17,8 @@ function sniff(bytes: Buffer): { ext: string } | null {
 /**
  * Avatars live on disk, outside git: `<AVATARS_DIR>/<userId>/<file>`. The database keeps only the
  * relative path `<userId>/<file>`; the API turns it into a URL served from `/avatars/...`.
+ * On Vercel (BLOB_READ_WRITE_TOKEN set) the disk is read-only, so avatars go to Vercel Blob and the
+ * database keeps the full public https URL instead.
  */
 @Injectable()
 export class AvatarStorageService {
@@ -28,6 +31,7 @@ export class AvatarStorageService {
    }
 
    urlFor(relativePath: string | null): string | null {
+      if (relativePath?.startsWith("https://")) return relativePath;
       return relativePath ? `${this.env.PUBLIC_API_URL.replace(/\/$/, "")}/avatars/${relativePath}` : null;
    }
 
@@ -36,6 +40,11 @@ export class AvatarStorageService {
       if (bytes.length > MAX_BYTES) throw new BadRequestException("The picture must be 2 MB or smaller.");
       const type = sniff(bytes);
       if (!type) throw new BadRequestException("The picture must be a PNG, JPEG or WebP image.");
+
+      if (process.env.BLOB_READ_WRITE_TOKEN) {
+         const blob = await put(`avatars/${userId}/avatar-${Date.now()}.${type.ext}`, bytes, { access: "public", addRandomSuffix: true });
+         return blob.url;
+      }
 
       const dir = join(this.rootDir, userId);
       await mkdir(dir, { recursive: true });
