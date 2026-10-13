@@ -27,3 +27,7 @@ test-ledger/
 # Nuxt
 .nuxt/
 .output/
+
+# Local runtime data (never committed)
+back/storage/
+docker-local/docker-data/

@@ -1,0 +1,29 @@
+// Mostro database. Paste this file into https://dbdiagram.io (Import > DBML) to see and edit the diagram.
+// Source of truth: the Flyway migrations in database/flyway/application/sql. Keep this file in sync when a migration changes a table.
+
+Project mostro_solana {
+  database_type: 'PostgreSQL'
+  Note: 'Only what a browser cannot keep. Wallets and passes live on the Solana blockchain, not here.'
+}
+
+Table mostro_app.users {
+  id          uuid        [pk, default: `gen_random_uuid()`, note: 'Mostro user id']
+  openfort_id text        [not null, unique, note: 'Openfort user id (usr_...). Identity comes from Openfort; this links back to it']
+  login_type  text        [not null, note: 'How the user signed in: email | google | apple | twitter']
+  email       text        [note: 'From Openfort. May be empty for some providers']
+  name        text        [note: 'Display name chosen on the profile step. Empty until set']
+  avatar_url  text        [note: 'Path of the picture file: <user id>/<file>. Files are stored on the server, not in the database']
+  created_at  timestamptz [not null, default: `now()`]
+  updated_at  timestamptz [not null, default: `now()`]
+
+  indexes {
+    email
+  }
+
+  Note: 'One row per person who signed in. Created at the first login.'
+}
+
+// Not stored here, on purpose:
+//   - Wallet and pass ownership: on the blockchain (Solana programs).
+//   - Passwords or login secrets: Openfort handles sign-in.
+//   - Card payments: MoonPay keeps them; the app only receives the "completed" event.

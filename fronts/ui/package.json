@@ -1,0 +1,8 @@
+{
+   "name": "@mostro/ui",
+   "version": "1.0.0",
+   "private": true,
+   "description": "Shared UI kit for the Mostro fronts. A Nuxt layer: extend it with `extends: [\"../ui\"]`.",
+   "type": "module",
+   "main": "./nuxt.config.ts"
+}

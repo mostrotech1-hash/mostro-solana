@@ -1,0 +1,124 @@
+{
+   "programId": "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK",
+   "cluster": "devnet",
+   "rpc": "https://api.devnet.solana.com",
+   "mplCore": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d",
+   "usdcMint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+   "pythSolUsd": "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE",
+   "pythFeedId": "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+   "config": "CfKmxY8e14VNMGL4P2XTNyjst2ZnvWKn9At3vu1nVkNE",
+   "treasury": "DRNx1WCLCc9xK3CcrdisBm4fhM8VVGFpoQg4rAUGRuXU",
+   "treasuryUsdc": "BNF7quju5t7wSS2xvn536n6Uqi4w8LiVuC89cpUFzKZ1",
+   "admin": "25TudRmaeaGcbhWXrZfamMeJJ8yQEjz63UpkK7LVQiUA",
+   "curves": [
+      {
+         "index": 0,
+         "curve": "5nhi4zryhrajh7qVdD9ZTFbcqaq3tHnLYVizW4wzt5WZ",
+         "mint": "XKfjX1yBTSP1tLovvtaPENeiqUhu8HUrxnC6bieLvtc",
+         "solVault": "2XgymqmsHPjRjM7A4nRqADqZPRQnYYbZYUr5Y9htoDXC",
+         "rewardsVault": "GUJ2N8xShn6pSSN21Q1bk8HHc2jZnesGdZxUJ6bAfFDq",
+         "usdcVault": "Do3EYRt8hUzmHMR3GZdnVcSk5WX9b9nJLVBajYafNijX",
+         "name": "Mostro",
+         "symbol": "MOST",
+         "decimals": 6
+      }
+   ],
+   "artists": [
+      {
+         "index": 0,
+         "artist": "D1YjAcrwbjKUrH2FUgDvzP8pgtHGUKSvUaVNV3NzuGME",
+         "authority": "25TudRmaeaGcbhWXrZfamMeJJ8yQEjz63UpkK7LVQiUA",
+         "name": "MoOG",
+         "vault": "HoFuaryYqfP2L394JqDexa2k9JPCkb6KcEGMFEZJdLM6",
+         "perks": [
+            {
+               "index": 0,
+               "perk": "BBXVAsVaWhh5y1GAPDaLe8kFyhTJQqcFBuDRUJKRMr6y",
+               "collection": "EQj6ZfYcWP9xTA36DSS8JYK6EmJ3m4mHKW4sotLbA8f1",
+               "collectionSalt": 1,
+               "kind": "pass",
+               "tier": 0,
+               "name": "MoOG Pass Standard",
+               "price": "1200000000",
+               "priceUi": 1200,
+               "maxSupply": 0,
+               "publicStartTs": 0,
+               "vipOnly": false,
+               "discountEligible": false
+            },
+            {
+               "index": 1,
+               "perk": "H8fDyPY3QkU6E7wj1wT4a8AKZANL3JMtUfMs8NnbG5E3",
+               "collection": "23zKLwiPFHmofiQiWU8faPjnDrg2QagSBrMUfoHFkCyM",
+               "collectionSalt": 1,
+               "kind": "pass",
+               "tier": 1,
+               "name": "MoOG Pass VIP",
+               "price": "3750000000",
+               "priceUi": 3750,
+               "maxSupply": 0,
+               "publicStartTs": 0,
+               "vipOnly": false,
+               "discountEligible": false
+            },
+            {
+               "index": 2,
+               "perk": "4VZac7EuEekVcKDtPDYdMhTSp5RWbUdW45rDPUPPAnfJ",
+               "collection": "8bfaHyAmqUrhDWNWr49Ec7AsGHhpyNfRznweYK6nQBU7",
+               "collectionSalt": 1,
+               "kind": "music",
+               "tier": 0,
+               "name": "Unreleased track",
+               "price": "50000000",
+               "priceUi": 50,
+               "maxSupply": 0,
+               "publicStartTs": 0,
+               "vipOnly": false,
+               "discountEligible": true
+            },
+            {
+               "index": 3,
+               "perk": "9Kcww2qpAKFVejGwgnKY5GdysBqyNS3W2HGGrgrEmST1",
+               "collection": "HzGspjCxMBqefD4L7BFdDgvLwTVzfijLSgPh7Kzgxiip",
+               "collectionSalt": 1,
+               "kind": "event",
+               "tier": 0,
+               "name": "Listening session",
+               "price": "900000000",
+               "priceUi": 900,
+               "maxSupply": 0,
+               "publicStartTs": 1791804058,
+               "vipOnly": false,
+               "discountEligible": false
+            },
+            {
+               "index": 4,
+               "perk": "6PiDqHLwAepPNft3Q426yjVqBxwsbPUV4QY9VXJEP93P",
+               "collection": "4TWoXDaVF27P7ef6TUsTMF1NkqyLo2MF1kwuY89rrtj9",
+               "collectionSalt": 1,
+               "kind": "merch",
+               "tier": 0,
+               "name": "Numbered tee",
+               "price": "1500000000",
+               "priceUi": 1500,
+               "maxSupply": 100,
+               "publicStartTs": 0,
+               "vipOnly": false,
+               "discountEligible": true
+            }
+         ]
+      }
+   ],
+   "passBenefits": {
+      "standardDiscountBps": 500,
+      "vipDiscountBps": 1500,
+      "standardEarlySecs": 86400,
+      "vipEarlySecs": 259200
+   },
+   "splitFloors": {
+      "minBurnBps": 0,
+      "minRewardsBps": 0
+   },
+   "deployedAt": "2026-10-09T13:37:15.727Z",
+   "programVersion": "0.1.0"
+}

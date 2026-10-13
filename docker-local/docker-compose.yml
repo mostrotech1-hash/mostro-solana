@@ -1,0 +1,62 @@
+# Local Postgres + Flyway for the Mostro API. Run from the repo root:
+#   yarn db:up        start Postgres (port 45434)
+#   yarn db:migrate   run the Flyway migrations (database/flyway)
+#   yarn db:down      stop it (data is kept in docker-local/docker-data)
+name: mostro-solana
+
+services:
+   db:
+      container_name: mostro-solana-db
+      image: postgres:17-alpine
+      restart: unless-stopped
+      environment:
+         POSTGRES_DB: postgres
+         POSTGRES_USER: root
+         POSTGRES_PASSWORD: secret
+      ports:
+         - "45434:5432"
+      volumes:
+         - ./docker-data/postgresql:/var/lib/postgresql/data
+      healthcheck:
+         test: ["CMD", "pg_isready", "-U", "root", "-d", "postgres"]
+         interval: 3s
+         timeout: 3s
+         retries: 20
+         start_period: 30s
+
+   # Pass 1: creates the `mostro_db` database and the `app_user` login (connects as the superuser).
+   flyway-init:
+      image: flyway/flyway:11
+      profiles: ["migrate"]
+      depends_on:
+         db:
+            condition: service_healthy
+      volumes:
+         - ../database/flyway/init-app-env/sql:/flyway/sql:ro
+      command: >
+         migrate
+         -url=jdbc:postgresql://db:5432/postgres?ssl=false
+         -user=root -password=secret
+         -defaultSchema=public
+         -placeholders.appUser=app_user
+         -placeholders.appUserPwd=app_user_password
+         -executeInTransaction=false
+         -baselineOnMigrate=true
+
+   # Pass 2: schema, tables and grants inside `mostro_db`.
+   flyway-app:
+      image: flyway/flyway:11
+      profiles: ["migrate"]
+      depends_on:
+         db:
+            condition: service_healthy
+      volumes:
+         - ../database/flyway/application/sql:/flyway/sql:ro
+      command: >
+         migrate
+         -url=jdbc:postgresql://db:5432/mostro_db?ssl=false
+         -user=root -password=secret
+         -defaultSchema=public
+         -placeholders.appUser=app_user
+         -executeInTransaction=true
+         -baselineOnMigrate=true

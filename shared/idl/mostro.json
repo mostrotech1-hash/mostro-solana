@@ -1,0 +1,3527 @@
+{
+   "address": "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK",
+   "metadata": {
+      "name": "mostro",
+      "version": "0.1.0",
+      "spec": "0.1.0",
+      "description": "Mostro on Solana: $MOST bonding curve, artist perks and MoOG Pass redemption"
+   },
+   "instructions": [
+      {
+         "name": "accept_admin",
+         "discriminator": [112, 42, 45, 90, 116, 181, 13, 170],
+         "accounts": [
+            {
+               "name": "pending_admin",
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            }
+         ],
+         "args": []
+      },
+      {
+         "name": "buy_tokens_exact_out_sol",
+         "discriminator": [160, 176, 95, 170, 229, 24, 26, 8],
+         "accounts": [
+            {
+               "name": "payer",
+               "docs": ["Pays rent for the buyer's token account. Usually the buyer; can be a sponsor."],
+               "writable": true,
+               "signer": true
+            },
+            {
+               "name": "buyer",
+               "docs": ["Pays the SOL and receives the tokens."],
+               "writable": true,
+               "signer": true
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "curve",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 117, 114, 118, 101]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve.index",
+                        "account": "Curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "mint",
+               "writable": true,
+               "relations": ["curve"]
+            },
+            {
+               "name": "sol_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [115, 111, 108, 95, 118, 97, 117, 108, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "treasury",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [116, 114, 101, 97, 115, 117, 114, 121]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "buyer_ata",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "account",
+                        "path": "buyer"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "token_program"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "mint"
+                     }
+                  ],
+                  "program": {
+                     "kind": "const",
+                     "value": [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+                  }
+               }
+            },
+            {
+               "name": "kyc",
+               "docs": ["Optional KYC record; `check_kyc` verifies it belongs to the buyer. No seeds so clients can omit it."],
+               "optional": true
+            },
+            {
+               "name": "token_program"
+            },
+            {
+               "name": "associated_token_program",
+               "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "tokens_out",
+               "type": "u64"
+            },
+            {
+               "name": "max_lamports_in",
+               "type": "u64"
+            }
+         ]
+      },
+      {
+         "name": "buy_tokens_sol",
+         "discriminator": [236, 167, 45, 186, 76, 10, 254, 109],
+         "accounts": [
+            {
+               "name": "payer",
+               "docs": ["Pays rent for the buyer's token account. Usually the buyer; can be a sponsor."],
+               "writable": true,
+               "signer": true
+            },
+            {
+               "name": "buyer",
+               "docs": ["Pays the SOL and receives the tokens."],
+               "writable": true,
+               "signer": true
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "curve",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 117, 114, 118, 101]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve.index",
+                        "account": "Curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "mint",
+               "writable": true,
+               "relations": ["curve"]
+            },
+            {
+               "name": "sol_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [115, 111, 108, 95, 118, 97, 117, 108, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "treasury",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [116, 114, 101, 97, 115, 117, 114, 121]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "buyer_ata",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "account",
+                        "path": "buyer"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "token_program"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "mint"
+                     }
+                  ],
+                  "program": {
+                     "kind": "const",
+                     "value": [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+                  }
+               }
+            },
+            {
+               "name": "kyc",
+               "docs": ["Optional KYC record; `check_kyc` verifies it belongs to the buyer. No seeds so clients can omit it."],
+               "optional": true
+            },
+            {
+               "name": "token_program"
+            },
+            {
+               "name": "associated_token_program",
+               "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "lamports_in",
+               "type": "u64"
+            },
+            {
+               "name": "min_tokens_out",
+               "type": "u64"
+            }
+         ]
+      },
+      {
+         "name": "buy_tokens_usdc",
+         "discriminator": [67, 28, 37, 41, 100, 173, 170, 86],
+         "accounts": [
+            {
+               "name": "payer",
+               "docs": ["Pays rent for the buyer's token account. Usually the buyer; can be a sponsor."],
+               "writable": true,
+               "signer": true
+            },
+            {
+               "name": "buyer",
+               "docs": ["Owns the USDC and receives the tokens."],
+               "signer": true
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "curve",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 117, 114, 118, 101]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve.index",
+                        "account": "Curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "mint",
+               "writable": true,
+               "relations": ["curve"]
+            },
+            {
+               "name": "usdc_mint",
+               "relations": ["config"]
+            },
+            {
+               "name": "buyer_usdc",
+               "writable": true
+            },
+            {
+               "name": "usdc_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "account",
+                        "path": "curve"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_token_program"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_mint"
+                     }
+                  ],
+                  "program": {
+                     "kind": "const",
+                     "value": [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+                  }
+               }
+            },
+            {
+               "name": "treasury_usdc",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "account",
+                        "path": "config"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_token_program"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_mint"
+                     }
+                  ],
+                  "program": {
+                     "kind": "const",
+                     "value": [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+                  }
+               }
+            },
+            {
+               "name": "buyer_ata",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "account",
+                        "path": "buyer"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "token_program"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "mint"
+                     }
+                  ],
+                  "program": {
+                     "kind": "const",
+                     "value": [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+                  }
+               }
+            },
+            {
+               "name": "price_update"
+            },
+            {
+               "name": "kyc",
+               "docs": ["Optional KYC record; `check_kyc` verifies it belongs to the buyer. No seeds so clients can omit it."],
+               "optional": true
+            },
+            {
+               "name": "token_program"
+            },
+            {
+               "name": "usdc_token_program"
+            },
+            {
+               "name": "associated_token_program",
+               "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "usdc_in",
+               "type": "u64"
+            },
+            {
+               "name": "min_tokens_out",
+               "type": "u64"
+            }
+         ]
+      },
+      {
+         "name": "cancel_admin_transfer",
+         "discriminator": [38, 131, 157, 31, 240, 137, 44, 215],
+         "accounts": [
+            {
+               "name": "admin",
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            }
+         ],
+         "args": []
+      },
+      {
+         "name": "create_artist",
+         "discriminator": [19, 246, 64, 224, 207, 250, 83, 11],
+         "accounts": [
+            {
+               "name": "admin",
+               "writable": true,
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "artist",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "config.artist_count",
+                        "account": "Config"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "authority",
+               "type": "pubkey"
+            },
+            {
+               "name": "name",
+               "type": "string"
+            },
+            {
+               "name": "uri",
+               "type": "string"
+            }
+         ]
+      },
+      {
+         "name": "create_curve",
+         "discriminator": [169, 235, 221, 223, 65, 109, 120, 183],
+         "accounts": [
+            {
+               "name": "admin",
+               "writable": true,
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "curve",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 117, 114, 118, 101]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "config.curve_count",
+                        "account": "Config"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "mint",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [109, 105, 110, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "config.curve_count",
+                        "account": "Config"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "sol_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [115, 111, 108, 95, 118, 97, 117, 108, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "rewards_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [114, 101, 119, 97, 114, 100, 115]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "usdc_mint"
+            },
+            {
+               "name": "usdc_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "account",
+                        "path": "curve"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_token_program"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_mint"
+                     }
+                  ],
+                  "program": {
+                     "kind": "const",
+                     "value": [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+                  }
+               }
+            },
+            {
+               "name": "token_program"
+            },
+            {
+               "name": "usdc_token_program"
+            },
+            {
+               "name": "associated_token_program",
+               "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "args",
+               "type": {
+                  "defined": {
+                     "name": "CreateCurveArgs"
+                  }
+               }
+            }
+         ]
+      },
+      {
+         "name": "create_perk",
+         "discriminator": [48, 204, 67, 28, 230, 199, 6, 245],
+         "accounts": [
+            {
+               "name": "signer",
+               "writable": true,
+               "signer": true
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "artist",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist.index",
+                        "account": "Artist"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "curve",
+               "docs": ["The curve mint the perk is priced in."]
+            },
+            {
+               "name": "mint"
+            },
+            {
+               "name": "perk",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [112, 101, 114, 107]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist.perk_count",
+                        "account": "Artist"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "collection",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 108, 108, 101, 99, 116, 105, 111, 110]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "perk"
+                     },
+                     {
+                        "kind": "arg",
+                        "path": "args.collection_salt"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "artist_vault",
+               "docs": ["Artist vault for this mint, created lazily here so `redeem_perk` never has to."],
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116, 95, 118, 97, 117, 108, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "mint"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "mpl_core_program",
+               "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+            },
+            {
+               "name": "token_program"
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "args",
+               "type": {
+                  "defined": {
+                     "name": "CreatePerkArgs"
+                  }
+               }
+            }
+         ]
+      },
+      {
+         "name": "fulfill_receipt",
+         "discriminator": [34, 193, 30, 176, 25, 238, 73, 51],
+         "accounts": [
+            {
+               "name": "signer",
+               "signer": true
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "artist",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist.index",
+                        "account": "Artist"
+                     }
+                  ]
+               },
+               "relations": ["receipt"]
+            },
+            {
+               "name": "receipt",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [114, 101, 99, 101, 105, 112, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "receipt.asset",
+                        "account": "Receipt"
+                     }
+                  ]
+               }
+            }
+         ],
+         "args": []
+      },
+      {
+         "name": "initialize_config",
+         "discriminator": [208, 127, 21, 1, 194, 190, 196, 70],
+         "accounts": [
+            {
+               "name": "payer",
+               "docs": ["Must be the program's upgrade authority so nobody can front-run the init."],
+               "writable": true,
+               "signer": true
+            },
+            {
+               "name": "config",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "treasury",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [116, 114, 101, 97, 115, 117, 114, 121]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "usdc_mint"
+            },
+            {
+               "name": "treasury_usdc",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "account",
+                        "path": "config"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_token_program"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_mint"
+                     }
+                  ],
+                  "program": {
+                     "kind": "const",
+                     "value": [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+                  }
+               }
+            },
+            {
+               "name": "program",
+               "address": "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK"
+            },
+            {
+               "name": "program_data"
+            },
+            {
+               "name": "usdc_token_program"
+            },
+            {
+               "name": "associated_token_program",
+               "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "args",
+               "type": {
+                  "defined": {
+                     "name": "InitializeConfigArgs"
+                  }
+               }
+            }
+         ]
+      },
+      {
+         "name": "propose_admin",
+         "discriminator": [121, 214, 199, 212, 87, 39, 117, 234],
+         "accounts": [
+            {
+               "name": "admin",
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            }
+         ],
+         "args": [
+            {
+               "name": "new_admin",
+               "type": "pubkey"
+            }
+         ]
+      },
+      {
+         "name": "redeem_perk",
+         "discriminator": [246, 154, 17, 49, 124, 164, 97, 104],
+         "accounts": [
+            {
+               "name": "payer",
+               "docs": ["Pays rent and the Core protocol fee. Usually the buyer; can be a sponsor (Openfort/Kora)."],
+               "writable": true,
+               "signer": true
+            },
+            {
+               "name": "buyer",
+               "docs": ["Owns the tokens being spent and receives the asset."],
+               "signer": true
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "artist",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist.index",
+                        "account": "Artist"
+                     }
+                  ]
+               },
+               "relations": ["perk"]
+            },
+            {
+               "name": "perk",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [112, 101, 114, 107]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "perk.index",
+                        "account": "Perk"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "curve",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 117, 114, 118, 101]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve.index",
+                        "account": "Curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "mint",
+               "writable": true,
+               "relations": ["perk", "curve"]
+            },
+            {
+               "name": "buyer_ata",
+               "writable": true
+            },
+            {
+               "name": "rewards_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [114, 101, 119, 97, 114, 100, 115]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "artist_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116, 95, 118, 97, 117, 108, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "mint"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "collection",
+               "writable": true,
+               "relations": ["perk"]
+            },
+            {
+               "name": "asset",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 115, 115, 101, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "perk"
+                     },
+                     {
+                        "kind": "arg",
+                        "path": "nonce"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "receipt",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [114, 101, 99, 101, 105, 112, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "asset"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "pass_asset",
+               "docs": ["Optional MoOG Pass held by the buyer, for discount / early access / VIP gating."],
+               "optional": true
+            },
+            {
+               "name": "pass_perk",
+               "docs": ["The pass perk the `pass_asset` belongs to."],
+               "optional": true
+            },
+            {
+               "name": "mpl_core_program",
+               "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+            },
+            {
+               "name": "token_program"
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "nonce",
+               "type": "u64"
+            },
+            {
+               "name": "max_paid",
+               "type": "u64"
+            }
+         ]
+      },
+      {
+         "name": "sell_tokens",
+         "discriminator": [114, 242, 25, 12, 62, 126, 92, 2],
+         "accounts": [
+            {
+               "name": "seller",
+               "writable": true,
+               "signer": true
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "curve",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 117, 114, 118, 101]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve.index",
+                        "account": "Curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "mint",
+               "writable": true,
+               "relations": ["curve"]
+            },
+            {
+               "name": "sol_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [115, 111, 108, 95, 118, 97, 117, 108, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "treasury",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [116, 114, 101, 97, 115, 117, 114, 121]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "seller_ata",
+               "writable": true
+            },
+            {
+               "name": "kyc",
+               "docs": ["Optional KYC record; `check_kyc` verifies it belongs to the seller. No seeds so clients can omit it."],
+               "optional": true
+            },
+            {
+               "name": "token_program"
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "tokens_in",
+               "type": "u64"
+            },
+            {
+               "name": "min_lamports_out",
+               "type": "u64"
+            }
+         ]
+      },
+      {
+         "name": "set_artist",
+         "discriminator": [48, 190, 158, 116, 201, 209, 202, 232],
+         "accounts": [
+            {
+               "name": "signer",
+               "signer": true
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "artist",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist.index",
+                        "account": "Artist"
+                     }
+                  ]
+               }
+            }
+         ],
+         "args": [
+            {
+               "name": "args",
+               "type": {
+                  "defined": {
+                     "name": "SetArtistArgs"
+                  }
+               }
+            }
+         ]
+      },
+      {
+         "name": "set_config",
+         "discriminator": [108, 158, 154, 175, 212, 98, 52, 66],
+         "accounts": [
+            {
+               "name": "admin",
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            }
+         ],
+         "args": [
+            {
+               "name": "args",
+               "type": {
+                  "defined": {
+                     "name": "SetConfigArgs"
+                  }
+               }
+            }
+         ]
+      },
+      {
+         "name": "set_curve_metadata",
+         "discriminator": [156, 65, 32, 0, 233, 223, 70, 133],
+         "accounts": [
+            {
+               "name": "admin",
+               "writable": true,
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "curve",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 117, 114, 118, 101]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "curve.index",
+                        "account": "Curve"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "mint",
+               "writable": true,
+               "relations": ["curve"]
+            },
+            {
+               "name": "metadata",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [109, 101, 116, 97, 100, 97, 116, 97]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "token_metadata_program"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "mint"
+                     }
+                  ],
+                  "program": {
+                     "kind": "account",
+                     "path": "token_metadata_program"
+                  }
+               }
+            },
+            {
+               "name": "token_metadata_program",
+               "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            },
+            {
+               "name": "rent",
+               "address": "SysvarRent111111111111111111111111111111111"
+            }
+         ],
+         "args": []
+      },
+      {
+         "name": "set_kyc",
+         "discriminator": [143, 253, 67, 18, 64, 198, 83, 190],
+         "accounts": [
+            {
+               "name": "admin",
+               "writable": true,
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "kyc",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [107, 121, 99]
+                     },
+                     {
+                        "kind": "arg",
+                        "path": "wallet"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "wallet",
+               "type": "pubkey"
+            },
+            {
+               "name": "approved",
+               "type": "bool"
+            },
+            {
+               "name": "country",
+               "type": {
+                  "array": ["u8", 2]
+               }
+            }
+         ]
+      },
+      {
+         "name": "set_perk",
+         "discriminator": [203, 252, 17, 207, 162, 34, 233, 231],
+         "accounts": [
+            {
+               "name": "signer",
+               "signer": true
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "artist",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist.index",
+                        "account": "Artist"
+                     }
+                  ]
+               },
+               "relations": ["perk"]
+            },
+            {
+               "name": "perk",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [112, 101, 114, 107]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "perk.index",
+                        "account": "Perk"
+                     }
+                  ]
+               }
+            }
+         ],
+         "args": [
+            {
+               "name": "args",
+               "type": {
+                  "defined": {
+                     "name": "SetPerkArgs"
+                  }
+               }
+            }
+         ]
+      },
+      {
+         "name": "withdraw_artist_vault",
+         "discriminator": [127, 89, 109, 61, 43, 223, 206, 209],
+         "accounts": [
+            {
+               "name": "authority",
+               "docs": ["Only the artist authority can withdraw; the protocol admin cannot touch artist vaults."],
+               "signer": true,
+               "relations": ["artist"]
+            },
+            {
+               "name": "artist",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist.index",
+                        "account": "Artist"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "mint"
+            },
+            {
+               "name": "artist_vault",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [97, 114, 116, 105, 115, 116, 95, 118, 97, 117, 108, 116]
+                     },
+                     {
+                        "kind": "account",
+                        "path": "artist"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "mint"
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "destination",
+               "writable": true
+            },
+            {
+               "name": "token_program"
+            }
+         ],
+         "args": [
+            {
+               "name": "amount",
+               "type": "u64"
+            }
+         ]
+      },
+      {
+         "name": "withdraw_treasury_sol",
+         "discriminator": [183, 223, 87, 23, 30, 186, 126, 187],
+         "accounts": [
+            {
+               "name": "admin",
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "treasury",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [116, 114, 101, 97, 115, 117, 114, 121]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "destination",
+               "writable": true
+            },
+            {
+               "name": "system_program",
+               "address": "11111111111111111111111111111111"
+            }
+         ],
+         "args": [
+            {
+               "name": "amount",
+               "type": "u64"
+            }
+         ]
+      },
+      {
+         "name": "withdraw_treasury_usdc",
+         "discriminator": [241, 92, 1, 1, 13, 159, 80, 136],
+         "accounts": [
+            {
+               "name": "admin",
+               "signer": true,
+               "relations": ["config"]
+            },
+            {
+               "name": "config",
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "const",
+                        "value": [99, 111, 110, 102, 105, 103]
+                     }
+                  ]
+               }
+            },
+            {
+               "name": "usdc_mint",
+               "relations": ["config"]
+            },
+            {
+               "name": "treasury_usdc",
+               "writable": true,
+               "pda": {
+                  "seeds": [
+                     {
+                        "kind": "account",
+                        "path": "config"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_token_program"
+                     },
+                     {
+                        "kind": "account",
+                        "path": "usdc_mint"
+                     }
+                  ],
+                  "program": {
+                     "kind": "const",
+                     "value": [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+                  }
+               }
+            },
+            {
+               "name": "destination",
+               "writable": true
+            },
+            {
+               "name": "usdc_token_program"
+            }
+         ],
+         "args": [
+            {
+               "name": "amount",
+               "type": "u64"
+            }
+         ]
+      }
+   ],
+   "accounts": [
+      {
+         "name": "Artist",
+         "discriminator": [142, 136, 31, 244, 208, 44, 128, 145]
+      },
+      {
+         "name": "BaseAssetV1",
+         "discriminator": [1]
+      },
+      {
+         "name": "BaseCollectionV1",
+         "discriminator": [5]
+      },
+      {
+         "name": "Config",
+         "discriminator": [155, 12, 170, 224, 30, 250, 204, 130]
+      },
+      {
+         "name": "Curve",
+         "discriminator": [191, 180, 249, 66, 180, 71, 51, 182]
+      },
+      {
+         "name": "Kyc",
+         "discriminator": [27, 3, 5, 223, 163, 21, 37, 201]
+      },
+      {
+         "name": "Perk",
+         "discriminator": [2, 34, 178, 63, 67, 155, 249, 194]
+      },
+      {
+         "name": "Receipt",
+         "discriminator": [39, 154, 73, 106, 80, 102, 145, 153]
+      }
+   ],
+   "events": [
+      {
+         "name": "AdminAccepted",
+         "discriminator": [174, 12, 76, 139, 158, 99, 110, 254]
+      },
+      {
+         "name": "AdminProposed",
+         "discriminator": [129, 249, 226, 227, 199, 82, 110, 243]
+      },
+      {
+         "name": "AdminTransferCancelled",
+         "discriminator": [93, 23, 69, 55, 216, 128, 106, 56]
+      },
+      {
+         "name": "ArtistCreated",
+         "discriminator": [101, 78, 4, 44, 142, 133, 209, 205]
+      },
+      {
+         "name": "ArtistUpdated",
+         "discriminator": [51, 184, 188, 50, 40, 83, 44, 59]
+      },
+      {
+         "name": "ArtistVaultWithdrawn",
+         "discriminator": [192, 150, 188, 116, 117, 178, 119, 165]
+      },
+      {
+         "name": "ConfigInitialized",
+         "discriminator": [181, 49, 200, 156, 19, 167, 178, 91]
+      },
+      {
+         "name": "ConfigUpdated",
+         "discriminator": [40, 241, 230, 122, 11, 19, 198, 194]
+      },
+      {
+         "name": "CurveCreated",
+         "discriminator": [207, 148, 202, 45, 236, 100, 171, 230]
+      },
+      {
+         "name": "KycUpdated",
+         "discriminator": [93, 95, 129, 3, 177, 236, 12, 233]
+      },
+      {
+         "name": "PerkCreated",
+         "discriminator": [43, 38, 171, 237, 200, 44, 219, 199]
+      },
+      {
+         "name": "PerkRedeemed",
+         "discriminator": [13, 119, 53, 107, 152, 10, 236, 247]
+      },
+      {
+         "name": "PerkUpdated",
+         "discriminator": [129, 27, 145, 8, 43, 158, 57, 242]
+      },
+      {
+         "name": "ReceiptFulfilled",
+         "discriminator": [233, 218, 183, 192, 156, 80, 118, 161]
+      },
+      {
+         "name": "TokensBought",
+         "discriminator": [151, 148, 173, 226, 128, 30, 249, 190]
+      },
+      {
+         "name": "TokensSold",
+         "discriminator": [217, 83, 68, 137, 134, 225, 94, 45]
+      },
+      {
+         "name": "TreasuryWithdrawn",
+         "discriminator": [143, 181, 157, 169, 87, 155, 170, 46]
+      }
+   ],
+   "errors": [
+      {
+         "code": 6000,
+         "name": "Paused",
+         "msg": "Protocol is paused"
+      },
+      {
+         "code": 6001,
+         "name": "Unauthorized",
+         "msg": "Signer is not authorized"
+      },
+      {
+         "code": 6002,
+         "name": "SaleNotStarted",
+         "msg": "Sale has not started yet"
+      },
+      {
+         "code": 6003,
+         "name": "PerkInactive",
+         "msg": "Perk is inactive"
+      },
+      {
+         "code": 6004,
+         "name": "PerkSoldOut",
+         "msg": "Perk is sold out"
+      },
+      {
+         "code": 6005,
+         "name": "SlippageExceeded",
+         "msg": "Slippage limit exceeded"
+      },
+      {
+         "code": 6006,
+         "name": "CurveSoldOut",
+         "msg": "Curve supply cap reached"
+      },
+      {
+         "code": 6007,
+         "name": "CurveComplete",
+         "msg": "Curve is complete; trading is closed"
+      },
+      {
+         "code": 6008,
+         "name": "InsufficientReserves",
+         "msg": "Insufficient real reserves to pay out"
+      },
+      {
+         "code": 6009,
+         "name": "MathOverflow",
+         "msg": "Arithmetic overflow"
+      },
+      {
+         "code": 6010,
+         "name": "InvalidAmount",
+         "msg": "Invalid amount"
+      },
+      {
+         "code": 6011,
+         "name": "InvalidBps",
+         "msg": "Invalid basis points"
+      },
+      {
+         "code": 6012,
+         "name": "InvalidTier",
+         "msg": "Invalid tier"
+      },
+      {
+         "code": 6013,
+         "name": "InvalidCurveParams",
+         "msg": "Invalid curve parameters"
+      },
+      {
+         "code": 6014,
+         "name": "StringTooLong",
+         "msg": "String too long"
+      },
+      {
+         "code": 6015,
+         "name": "InvalidPriceAccount",
+         "msg": "Price account does not match config"
+      },
+      {
+         "code": 6016,
+         "name": "PriceFeedMismatch",
+         "msg": "Price feed id mismatch"
+      },
+      {
+         "code": 6017,
+         "name": "PriceTooOld",
+         "msg": "Price is too old"
+      },
+      {
+         "code": 6018,
+         "name": "PriceNonPositive",
+         "msg": "Price is not positive"
+      },
+      {
+         "code": 6019,
+         "name": "PriceNotSet",
+         "msg": "Price not set"
+      },
+      {
+         "code": 6020,
+         "name": "AdminTransferNotReady",
+         "msg": "Admin transfer not ready"
+      },
+      {
+         "code": 6021,
+         "name": "NoPendingAdmin",
+         "msg": "No pending admin transfer"
+      },
+      {
+         "code": 6022,
+         "name": "InvalidCollection",
+         "msg": "Collection does not match perk"
+      },
+      {
+         "code": 6023,
+         "name": "InvalidMint",
+         "msg": "Mint does not match"
+      },
+      {
+         "code": 6024,
+         "name": "KycRequired",
+         "msg": "KYC approval required"
+      },
+      {
+         "code": 6025,
+         "name": "VipOnly",
+         "msg": "Perk is VIP-only"
+      },
+      {
+         "code": 6026,
+         "name": "InvalidPass",
+         "msg": "Pass asset is not valid for this buyer"
+      },
+      {
+         "code": 6027,
+         "name": "PassMismatch",
+         "msg": "Pass perk and pass asset do not match"
+      },
+      {
+         "code": 6028,
+         "name": "AlreadyFulfilled",
+         "msg": "Receipt already fulfilled"
+      },
+      {
+         "code": 6029,
+         "name": "ArtistInactive",
+         "msg": "Artist is inactive"
+      },
+      {
+         "code": 6030,
+         "name": "InvalidDiscount",
+         "msg": "Discount exceeds price"
+      },
+      {
+         "code": 6031,
+         "name": "PriceUncertain",
+         "msg": "Price confidence interval too wide"
+      }
+   ],
+   "types": [
+      {
+         "name": "AdminAccepted",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "previous",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "admin",
+                  "type": "pubkey"
+               }
+            ]
+         }
+      },
+      {
+         "name": "AdminProposed",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "current",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "proposed",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "ready_ts",
+                  "type": "i64"
+               }
+            ]
+         }
+      },
+      {
+         "name": "AdminTransferCancelled",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "admin",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "cancelled",
+                  "type": "pubkey"
+               }
+            ]
+         }
+      },
+      {
+         "name": "Artist",
+         "docs": ["An artist that opens perks to fans. PDA `[\"artist\", index_le]`."],
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "bump",
+                  "type": "u8"
+               },
+               {
+                  "name": "version",
+                  "type": "u8"
+               },
+               {
+                  "name": "index",
+                  "type": "u32"
+               },
+               {
+                  "name": "authority",
+                  "docs": ["Wallet allowed to manage this artist's perks and withdraw its vault."],
+                  "type": "pubkey"
+               },
+               {
+                  "name": "name",
+                  "type": "string"
+               },
+               {
+                  "name": "uri",
+                  "type": "string"
+               },
+               {
+                  "name": "perk_count",
+                  "type": "u32"
+               },
+               {
+                  "name": "revenue_tokens",
+                  "docs": ["Cumulative tokens routed to the artist vault."],
+                  "type": "u64"
+               },
+               {
+                  "name": "active",
+                  "type": "bool"
+               },
+               {
+                  "name": "_reserved",
+                  "type": {
+                     "array": ["u8", 48]
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "ArtistCreated",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "artist",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "index",
+                  "type": "u32"
+               },
+               {
+                  "name": "authority",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "name",
+                  "type": "string"
+               }
+            ]
+         }
+      },
+      {
+         "name": "ArtistUpdated",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "artist",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "authority",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "active",
+                  "type": "bool"
+               }
+            ]
+         }
+      },
+      {
+         "name": "ArtistVaultWithdrawn",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "artist",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "mint",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "destination",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "amount",
+                  "type": "u64"
+               }
+            ]
+         }
+      },
+      {
+         "name": "BaseAssetV1",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "key",
+                  "type": {
+                     "defined": {
+                        "name": "Key"
+                     }
+                  }
+               },
+               {
+                  "name": "owner",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "update_authority",
+                  "type": {
+                     "defined": {
+                        "name": "UpdateAuthority"
+                     }
+                  }
+               },
+               {
+                  "name": "name",
+                  "type": "string"
+               },
+               {
+                  "name": "uri",
+                  "type": "string"
+               },
+               {
+                  "name": "seq",
+                  "type": {
+                     "option": "u64"
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "BaseCollectionV1",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "key",
+                  "type": {
+                     "defined": {
+                        "name": "Key"
+                     }
+                  }
+               },
+               {
+                  "name": "update_authority",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "name",
+                  "type": "string"
+               },
+               {
+                  "name": "uri",
+                  "type": "string"
+               },
+               {
+                  "name": "num_minted",
+                  "type": "u32"
+               },
+               {
+                  "name": "current_size",
+                  "type": "u32"
+               }
+            ]
+         }
+      },
+      {
+         "name": "Config",
+         "docs": ["Global protocol configuration. Single PDA `[\"config\"]`."],
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "bump",
+                  "type": "u8"
+               },
+               {
+                  "name": "version",
+                  "type": "u8"
+               },
+               {
+                  "name": "admin",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "pending_admin",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "admin_transfer_ready_ts",
+                  "type": "i64"
+               },
+               {
+                  "name": "admin_cooloff_secs",
+                  "type": "u32"
+               },
+               {
+                  "name": "usdc_mint",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "treasury_bump",
+                  "type": "u8"
+               },
+               {
+                  "name": "fee_bps",
+                  "docs": ["Protocol fee on curve trades, in basis points of the quote amount."],
+                  "type": "u16"
+               },
+               {
+                  "name": "paused",
+                  "type": "bool"
+               },
+               {
+                  "name": "kyc_required",
+                  "docs": ["When true, buying tokens on the curve requires an approved `Kyc` record."],
+                  "type": "bool"
+               },
+               {
+                  "name": "price_mode",
+                  "docs": ["0 = admin-set price, 1 = Pyth PriceUpdateV2 account."],
+                  "type": "u8"
+               },
+               {
+                  "name": "sol_usd_price_e6",
+                  "docs": ["SOL/USD with 6 decimals (used in `price_mode == 0`)."],
+                  "type": "u64"
+               },
+               {
+                  "name": "price_updated_ts",
+                  "type": "i64"
+               },
+               {
+                  "name": "pyth_sol_usd_account",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "pyth_feed_id",
+                  "type": {
+                     "array": ["u8", 32]
+                  }
+               },
+               {
+                  "name": "max_price_age_secs",
+                  "type": "u32"
+               },
+               {
+                  "name": "standard_discount_bps",
+                  "docs": ["MoOG Pass benefits, enforced on-chain in `redeem_perk`."],
+                  "type": "u16"
+               },
+               {
+                  "name": "vip_discount_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "standard_early_secs",
+                  "type": "u32"
+               },
+               {
+                  "name": "vip_early_secs",
+                  "type": "u32"
+               },
+               {
+                  "name": "curve_count",
+                  "type": "u32"
+               },
+               {
+                  "name": "artist_count",
+                  "type": "u32"
+               },
+               {
+                  "name": "min_burn_bps",
+                  "docs": ["Floors every perk's split must respect (protects protocol economics from artists)."],
+                  "type": "u16"
+               },
+               {
+                  "name": "min_rewards_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "admin_price_max_age_secs",
+                  "docs": ["Max age of the admin-set SOL/USD price (mode 0). Pyth mode uses `max_price_age_secs`."],
+                  "type": "u32"
+               },
+               {
+                  "name": "_reserved",
+                  "type": {
+                     "array": ["u8", 56]
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "ConfigInitialized",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "admin",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "usdc_mint",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "fee_bps",
+                  "type": "u16"
+               }
+            ]
+         }
+      },
+      {
+         "name": "ConfigUpdated",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "admin",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "paused",
+                  "type": "bool"
+               },
+               {
+                  "name": "price_mode",
+                  "type": "u8"
+               },
+               {
+                  "name": "sol_usd_price_e6",
+                  "type": "u64"
+               },
+               {
+                  "name": "fee_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "kyc_required",
+                  "type": "bool"
+               }
+            ]
+         }
+      },
+      {
+         "name": "CreateCurveArgs",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "name",
+                  "type": "string"
+               },
+               {
+                  "name": "symbol",
+                  "type": "string"
+               },
+               {
+                  "name": "uri",
+                  "type": "string"
+               },
+               {
+                  "name": "virtual_sol_reserves",
+                  "type": "u64"
+               },
+               {
+                  "name": "virtual_token_reserves",
+                  "type": "u64"
+               },
+               {
+                  "name": "supply_cap",
+                  "type": "u64"
+               },
+               {
+                  "name": "sale_start_ts",
+                  "type": "i64"
+               }
+            ]
+         }
+      },
+      {
+         "name": "CreatePerkArgs",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "kind",
+                  "type": {
+                     "defined": {
+                        "name": "PerkKind"
+                     }
+                  }
+               },
+               {
+                  "name": "tier",
+                  "type": "u8"
+               },
+               {
+                  "name": "price",
+                  "type": "u64"
+               },
+               {
+                  "name": "burn_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "rewards_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "max_supply",
+                  "type": "u32"
+               },
+               {
+                  "name": "public_start_ts",
+                  "type": "i64"
+               },
+               {
+                  "name": "vip_only",
+                  "type": "bool"
+               },
+               {
+                  "name": "discount_eligible",
+                  "type": "bool"
+               },
+               {
+                  "name": "name",
+                  "type": "string"
+               },
+               {
+                  "name": "uri",
+                  "type": "string"
+               },
+               {
+                  "name": "collection_salt",
+                  "docs": ["Client-chosen salt for the collection address, so a squatted (pre-funded) PDA can be skipped."],
+                  "type": "u64"
+               }
+            ]
+         }
+      },
+      {
+         "name": "Curve",
+         "docs": ["A bonding curve for one token mint (the first one is $MOST). PDA `[\"curve\", index_le]`."],
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "bump",
+                  "type": "u8"
+               },
+               {
+                  "name": "version",
+                  "type": "u8"
+               },
+               {
+                  "name": "index",
+                  "type": "u32"
+               },
+               {
+                  "name": "mint",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "sol_vault_bump",
+                  "type": "u8"
+               },
+               {
+                  "name": "name",
+                  "type": "string"
+               },
+               {
+                  "name": "symbol",
+                  "type": "string"
+               },
+               {
+                  "name": "uri",
+                  "type": "string"
+               },
+               {
+                  "name": "virtual_sol_reserves",
+                  "docs": ["Constant-product virtual reserves (pump.fun style), quote = lamports."],
+                  "type": "u64"
+               },
+               {
+                  "name": "virtual_token_reserves",
+                  "type": "u64"
+               },
+               {
+                  "name": "real_sol_reserves",
+                  "docs": ["Real SOL held in `sol_vault` that backs sells (never includes the rent floor)."],
+                  "type": "u64"
+               },
+               {
+                  "name": "real_usdc_reserves",
+                  "docs": ["USDC received through `buy_tokens_usdc` (not sellable back; informational)."],
+                  "type": "u64"
+               },
+               {
+                  "name": "supply_cap",
+                  "docs": ["Max tokens the curve will ever mint. Reaching it marks the curve `complete`."],
+                  "type": "u64"
+               },
+               {
+                  "name": "tokens_sold",
+                  "type": "u64"
+               },
+               {
+                  "name": "total_burned",
+                  "type": "u64"
+               },
+               {
+                  "name": "rewards_accrued",
+                  "type": "u64"
+               },
+               {
+                  "name": "sale_start_ts",
+                  "type": "i64"
+               },
+               {
+                  "name": "created_at",
+                  "type": "i64"
+               },
+               {
+                  "name": "complete",
+                  "type": "bool"
+               },
+               {
+                  "name": "_reserved",
+                  "type": {
+                     "array": ["u8", 64]
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "CurveCreated",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "curve",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "mint",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "index",
+                  "type": "u32"
+               },
+               {
+                  "name": "virtual_sol_reserves",
+                  "type": "u64"
+               },
+               {
+                  "name": "virtual_token_reserves",
+                  "type": "u64"
+               },
+               {
+                  "name": "supply_cap",
+                  "type": "u64"
+               }
+            ]
+         }
+      },
+      {
+         "name": "InitializeConfigArgs",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "admin",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "fee_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "sol_usd_price_e6",
+                  "type": "u64"
+               },
+               {
+                  "name": "max_price_age_secs",
+                  "type": "u32"
+               },
+               {
+                  "name": "pyth_sol_usd_account",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "pyth_feed_id",
+                  "type": {
+                     "array": ["u8", 32]
+                  }
+               },
+               {
+                  "name": "admin_cooloff_secs",
+                  "type": "u32"
+               },
+               {
+                  "name": "min_burn_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "min_rewards_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "admin_price_max_age_secs",
+                  "type": "u32"
+               }
+            ]
+         }
+      },
+      {
+         "name": "Key",
+         "type": {
+            "kind": "enum",
+            "variants": [
+               {
+                  "name": "Uninitialized"
+               },
+               {
+                  "name": "AssetV1"
+               },
+               {
+                  "name": "HashedAssetV1"
+               },
+               {
+                  "name": "PluginHeaderV1"
+               },
+               {
+                  "name": "PluginRegistryV1"
+               },
+               {
+                  "name": "CollectionV1"
+               },
+               {
+                  "name": "GroupV1"
+               }
+            ]
+         }
+      },
+      {
+         "name": "Kyc",
+         "docs": ["KYC attestation written by the admin after the off-chain ID check. PDA `[\"kyc\", wallet]`."],
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "bump",
+                  "type": "u8"
+               },
+               {
+                  "name": "wallet",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "approved",
+                  "type": "bool"
+               },
+               {
+                  "name": "country",
+                  "docs": ["ISO 3166-1 alpha-2, uppercase ASCII."],
+                  "type": {
+                     "array": ["u8", 2]
+                  }
+               },
+               {
+                  "name": "updated_ts",
+                  "type": "i64"
+               }
+            ]
+         }
+      },
+      {
+         "name": "KycUpdated",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "wallet",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "approved",
+                  "type": "bool"
+               },
+               {
+                  "name": "country",
+                  "type": {
+                     "array": ["u8", 2]
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "Perk",
+         "docs": ["Something a fan can redeem tokens for. PDA `[\"perk\", artist, index_le]`."],
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "bump",
+                  "type": "u8"
+               },
+               {
+                  "name": "version",
+                  "type": "u8"
+               },
+               {
+                  "name": "index",
+                  "type": "u32"
+               },
+               {
+                  "name": "artist",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "mint",
+                  "docs": ["Token the perk is priced in (a curve mint)."],
+                  "type": "pubkey"
+               },
+               {
+                  "name": "collection",
+                  "docs": ["Metaplex Core collection every redeemed asset is minted into."],
+                  "type": "pubkey"
+               },
+               {
+                  "name": "collection_bump",
+                  "type": "u8"
+               },
+               {
+                  "name": "kind",
+                  "type": {
+                     "defined": {
+                        "name": "PerkKind"
+                     }
+                  }
+               },
+               {
+                  "name": "tier",
+                  "docs": ["Pass tier (0 Standard, 1 VIP). Zero for non-pass perks."],
+                  "type": "u8"
+               },
+               {
+                  "name": "price",
+                  "docs": ["Price in token base units (6 decimals)."],
+                  "type": "u64"
+               },
+               {
+                  "name": "burn_bps",
+                  "docs": ["Split of the paid amount: burned / rewards vault / artist vault (remainder)."],
+                  "type": "u16"
+               },
+               {
+                  "name": "rewards_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "max_supply",
+                  "docs": ["0 = unlimited."],
+                  "type": "u32"
+               },
+               {
+                  "name": "sold",
+                  "type": "u32"
+               },
+               {
+                  "name": "public_start_ts",
+                  "docs": ["Unix time when everyone can redeem. Pass holders may redeem earlier."],
+                  "type": "i64"
+               },
+               {
+                  "name": "vip_only",
+                  "docs": ["Only VIP pass holders may redeem."],
+                  "type": "bool"
+               },
+               {
+                  "name": "discount_eligible",
+                  "docs": ["Whether pass discounts apply (music & merch per product copy)."],
+                  "type": "bool"
+               },
+               {
+                  "name": "active",
+                  "type": "bool"
+               },
+               {
+                  "name": "name",
+                  "type": "string"
+               },
+               {
+                  "name": "uri",
+                  "type": "string"
+               },
+               {
+                  "name": "_reserved",
+                  "type": {
+                     "array": ["u8", 48]
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "PerkCreated",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "perk",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "artist",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "collection",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "kind",
+                  "type": {
+                     "defined": {
+                        "name": "PerkKind"
+                     }
+                  }
+               },
+               {
+                  "name": "tier",
+                  "type": "u8"
+               },
+               {
+                  "name": "price",
+                  "type": "u64"
+               },
+               {
+                  "name": "max_supply",
+                  "type": "u32"
+               }
+            ]
+         }
+      },
+      {
+         "name": "PerkKind",
+         "docs": ["Kind of perk an artist opens to fans (mirrors the product copy: pass, music, events, merch)."],
+         "repr": {
+            "kind": "rust"
+         },
+         "type": {
+            "kind": "enum",
+            "variants": [
+               {
+                  "name": "Pass"
+               },
+               {
+                  "name": "Music"
+               },
+               {
+                  "name": "Event"
+               },
+               {
+                  "name": "Merch"
+               }
+            ]
+         }
+      },
+      {
+         "name": "PerkRedeemed",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "perk",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "artist",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "buyer",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "asset",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "receipt",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "edition",
+                  "type": "u32"
+               },
+               {
+                  "name": "kind",
+                  "type": {
+                     "defined": {
+                        "name": "PerkKind"
+                     }
+                  }
+               },
+               {
+                  "name": "tier",
+                  "type": "u8"
+               },
+               {
+                  "name": "paid",
+                  "type": "u64"
+               },
+               {
+                  "name": "burned",
+                  "type": "u64"
+               },
+               {
+                  "name": "to_rewards",
+                  "type": "u64"
+               },
+               {
+                  "name": "to_artist",
+                  "type": "u64"
+               },
+               {
+                  "name": "discount_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "pass_used",
+                  "type": "pubkey"
+               }
+            ]
+         }
+      },
+      {
+         "name": "PerkUpdated",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "perk",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "artist",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "price",
+                  "type": "u64"
+               },
+               {
+                  "name": "active",
+                  "type": "bool"
+               },
+               {
+                  "name": "max_supply",
+                  "type": "u32"
+               },
+               {
+                  "name": "public_start_ts",
+                  "type": "i64"
+               },
+               {
+                  "name": "vip_only",
+                  "type": "bool"
+               },
+               {
+                  "name": "discount_eligible",
+                  "type": "bool"
+               },
+               {
+                  "name": "burn_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "rewards_bps",
+                  "type": "u16"
+               }
+            ]
+         }
+      },
+      {
+         "name": "Receipt",
+         "docs": ["Proof of a redemption, keyed by the minted asset. PDA `[\"receipt\", asset]`."],
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "bump",
+                  "type": "u8"
+               },
+               {
+                  "name": "version",
+                  "type": "u8"
+               },
+               {
+                  "name": "buyer",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "perk",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "artist",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "asset",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "edition",
+                  "type": "u32"
+               },
+               {
+                  "name": "kind",
+                  "type": {
+                     "defined": {
+                        "name": "PerkKind"
+                     }
+                  }
+               },
+               {
+                  "name": "tier",
+                  "type": "u8"
+               },
+               {
+                  "name": "paid",
+                  "type": "u64"
+               },
+               {
+                  "name": "burned",
+                  "type": "u64"
+               },
+               {
+                  "name": "to_rewards",
+                  "type": "u64"
+               },
+               {
+                  "name": "to_artist",
+                  "type": "u64"
+               },
+               {
+                  "name": "discount_bps",
+                  "type": "u16"
+               },
+               {
+                  "name": "pass_used",
+                  "docs": ["Pass asset used for discount/early access, or default if none."],
+                  "type": "pubkey"
+               },
+               {
+                  "name": "ts",
+                  "type": "i64"
+               },
+               {
+                  "name": "fulfilled",
+                  "docs": ["Set by the artist once a physical/off-chain perk was delivered."],
+                  "type": "bool"
+               },
+               {
+                  "name": "fulfilled_ts",
+                  "type": "i64"
+               },
+               {
+                  "name": "_reserved",
+                  "type": {
+                     "array": ["u8", 32]
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "ReceiptFulfilled",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "receipt",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "perk",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "by",
+                  "type": "pubkey"
+               }
+            ]
+         }
+      },
+      {
+         "name": "SetArtistArgs",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "authority",
+                  "type": {
+                     "option": "pubkey"
+                  }
+               },
+               {
+                  "name": "name",
+                  "type": {
+                     "option": "string"
+                  }
+               },
+               {
+                  "name": "uri",
+                  "type": {
+                     "option": "string"
+                  }
+               },
+               {
+                  "name": "active",
+                  "type": {
+                     "option": "bool"
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "SetConfigArgs",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "paused",
+                  "type": {
+                     "option": "bool"
+                  }
+               },
+               {
+                  "name": "kyc_required",
+                  "type": {
+                     "option": "bool"
+                  }
+               },
+               {
+                  "name": "price_mode",
+                  "type": {
+                     "option": "u8"
+                  }
+               },
+               {
+                  "name": "sol_usd_price_e6",
+                  "type": {
+                     "option": "u64"
+                  }
+               },
+               {
+                  "name": "pyth_sol_usd_account",
+                  "type": {
+                     "option": "pubkey"
+                  }
+               },
+               {
+                  "name": "pyth_feed_id",
+                  "type": {
+                     "option": {
+                        "array": ["u8", 32]
+                     }
+                  }
+               },
+               {
+                  "name": "max_price_age_secs",
+                  "type": {
+                     "option": "u32"
+                  }
+               },
+               {
+                  "name": "fee_bps",
+                  "type": {
+                     "option": "u16"
+                  }
+               },
+               {
+                  "name": "standard_discount_bps",
+                  "type": {
+                     "option": "u16"
+                  }
+               },
+               {
+                  "name": "vip_discount_bps",
+                  "type": {
+                     "option": "u16"
+                  }
+               },
+               {
+                  "name": "standard_early_secs",
+                  "type": {
+                     "option": "u32"
+                  }
+               },
+               {
+                  "name": "vip_early_secs",
+                  "type": {
+                     "option": "u32"
+                  }
+               },
+               {
+                  "name": "min_burn_bps",
+                  "type": {
+                     "option": "u16"
+                  }
+               },
+               {
+                  "name": "min_rewards_bps",
+                  "type": {
+                     "option": "u16"
+                  }
+               },
+               {
+                  "name": "admin_price_max_age_secs",
+                  "type": {
+                     "option": "u32"
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "SetPerkArgs",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "price",
+                  "type": {
+                     "option": "u64"
+                  }
+               },
+               {
+                  "name": "active",
+                  "type": {
+                     "option": "bool"
+                  }
+               },
+               {
+                  "name": "max_supply",
+                  "type": {
+                     "option": "u32"
+                  }
+               },
+               {
+                  "name": "public_start_ts",
+                  "type": {
+                     "option": "i64"
+                  }
+               },
+               {
+                  "name": "vip_only",
+                  "type": {
+                     "option": "bool"
+                  }
+               },
+               {
+                  "name": "discount_eligible",
+                  "type": {
+                     "option": "bool"
+                  }
+               },
+               {
+                  "name": "burn_bps",
+                  "type": {
+                     "option": "u16"
+                  }
+               },
+               {
+                  "name": "rewards_bps",
+                  "type": {
+                     "option": "u16"
+                  }
+               },
+               {
+                  "name": "uri",
+                  "type": {
+                     "option": "string"
+                  }
+               }
+            ]
+         }
+      },
+      {
+         "name": "TokensBought",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "curve",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "mint",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "buyer",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "quote_kind",
+                  "docs": ["0 = SOL, 1 = USDC"],
+                  "type": "u8"
+               },
+               {
+                  "name": "quote_in",
+                  "type": "u64"
+               },
+               {
+                  "name": "quote_net",
+                  "type": "u64"
+               },
+               {
+                  "name": "fee",
+                  "type": "u64"
+               },
+               {
+                  "name": "tokens_out",
+                  "type": "u64"
+               },
+               {
+                  "name": "virtual_sol_reserves",
+                  "type": "u64"
+               },
+               {
+                  "name": "virtual_token_reserves",
+                  "type": "u64"
+               }
+            ]
+         }
+      },
+      {
+         "name": "TokensSold",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "curve",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "mint",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "seller",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "tokens_in",
+                  "type": "u64"
+               },
+               {
+                  "name": "lamports_out",
+                  "type": "u64"
+               },
+               {
+                  "name": "fee",
+                  "type": "u64"
+               },
+               {
+                  "name": "virtual_sol_reserves",
+                  "type": "u64"
+               },
+               {
+                  "name": "virtual_token_reserves",
+                  "type": "u64"
+               }
+            ]
+         }
+      },
+      {
+         "name": "TreasuryWithdrawn",
+         "type": {
+            "kind": "struct",
+            "fields": [
+               {
+                  "name": "destination",
+                  "type": "pubkey"
+               },
+               {
+                  "name": "amount",
+                  "type": "u64"
+               },
+               {
+                  "name": "usdc",
+                  "type": "bool"
+               }
+            ]
+         }
+      },
+      {
+         "name": "UpdateAuthority",
+         "type": {
+            "kind": "enum",
+            "variants": [
+               {
+                  "name": "None"
+               },
+               {
+                  "name": "Address",
+                  "fields": ["pubkey"]
+               },
+               {
+                  "name": "Collection",
+                  "fields": ["pubkey"]
+               }
+            ]
+         }
+      }
+   ]
+}

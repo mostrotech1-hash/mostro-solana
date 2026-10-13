@@ -1,0 +1,29 @@
+[package]
+name = "mostro"
+version = "0.1.0"
+description = "Mostro on Solana: $MOST bonding curve, artist perks and MoOG Pass redemption"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "mostro"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = { version = "=0.32.1", features = ["init-if-needed"] }
+anchor-spl = { version = "=0.32.1", features = ["metadata"] }
+mpl-core = { version = "0.12.1", default-features = false, features = ["anchor", "anchor-0-32"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

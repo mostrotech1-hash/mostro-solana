@@ -1,0 +1,53 @@
+/* Design tokens, taken from the Figma hackathon screens (H01 to H09). */
+:root {
+   --m-bg: #0a111f;
+   --m-surface: #121b2b;
+   --m-surface-2: #1a2438;
+   --m-border: #2d3953;
+   --m-text: #ffffff;
+   --m-muted: #b3b3b3;
+   --m-lime: #dcfd63;
+   --m-ink: #0a111f;
+   --m-danger: #fd6363;
+   --m-warning: #ffc53d;
+   --m-font: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+   /* Horizontal page padding: 16px on phones, 80px on desktop (the design's 1440 layout). */
+   --m-pad-x: 16px;
+}
+
+*,
+*::before,
+*::after {
+   box-sizing: border-box;
+}
+
+html,
+body {
+   margin: 0;
+   min-height: 100%;
+   background: var(--m-bg);
+   color: var(--m-text);
+   font-family: var(--m-font);
+   -webkit-font-smoothing: antialiased;
+}
+
+img {
+   max-width: 100%;
+   display: block;
+}
+
+button {
+   font-family: inherit;
+}
+
+@media (min-width: 900px) {
+   :root {
+      --m-pad-x: 40px;
+   }
+}
+
+@media (min-width: 1280px) {
+   :root {
+      --m-pad-x: 80px;
+   }
+}
