@@ -39,6 +39,7 @@ yarn test:programs             # integration suite on a fresh surfpool fork of d
 anchor deploy                  # cluster from Anchor.toml (devnet)
 yarn export:shared             # copy IDL and types into shared/
 yarn seed:devnet               # initialize config, $MOST curve, demo artist and perks
+npx ts-node scripts/demo-one-tx.ts   # buy exact $MOST + redeem the pass in one transaction
 npx ts-node scripts/set-kyc.ts <wallet> true GB      # approve a wallet (kyc_required is on: needed before any buy/sell)
 npx ts-node scripts/set-config.ts key=value ...      # admin switchboard: kycRequired, paused, feeBps, adminPriceMaxAgeSecs, ...
 npx ts-node scripts/set-price.ts <0|1> [priceUsd]    # SOL/USD source; refreshes the admin price (expires after 24 h)
