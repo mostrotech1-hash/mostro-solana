@@ -38,6 +38,8 @@ export interface PrepareMoonpayRequest {
    amountSol: number;
 }
 export interface PrepareMoonpayResponse {
+   /** Expiring server proof of the caller's prepared purchase. */
+   preparationToken: string;
    /** `sandbox` for pk_test keys, `production` for pk_live keys. */
    environment: "sandbox" | "production";
    /** Widget query params, passed to the SDK as `params`. */
@@ -46,6 +48,7 @@ export interface PrepareMoonpayResponse {
 
 /** POST /moonpay/sign-url: the SDK's unsigned widget URL goes in, the signature comes out. */
 export interface SignMoonpayUrlRequest {
+   preparationToken: string;
    urlForSignature: string;
 }
 export interface SignMoonpayUrlResponse {

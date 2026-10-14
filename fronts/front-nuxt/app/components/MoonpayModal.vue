@@ -64,7 +64,7 @@ async function start() {
 
       // MoonPay needs a signature because the URL carries a wallet address: the API signs it with the secret key.
       const urlForSignature = sdk.generateUrlForSigning();
-      const signBody: SignMoonpayUrlRequest = { urlForSignature };
+      const signBody: SignMoonpayUrlRequest = { urlForSignature, preparationToken: prepared.preparationToken };
       const { signature } = await session.api<SignMoonpayUrlResponse>("/moonpay/sign-url", { method: "POST", body: signBody });
       sdk.updateSignature(signature);
       sdk.show();

@@ -1,4 +1,5 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
 import type { PrepareMoonpayResponse } from "@mostro/shared/api";
 import { ENV, type Env } from "../../config/env";
@@ -15,6 +16,7 @@ export interface BuyWidgetParams {
 /** True only for a routable public IP: loopback, private and link-local addresses mean the API is being called from the same machine. */
 export function isPublicIp(ip: string): boolean {
    const addr = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+   if (!isIP(addr)) return false;
    if (addr === "::1" || addr === "::" || /^(fc|fd|fe80)/i.test(addr)) return false;
    const parts = addr.split(".");
    if (parts.length !== 4) return true;
@@ -33,7 +35,7 @@ export class MoonpayUrlService {
 
    constructor(@Inject(ENV) private readonly env: Env) {}
 
-   prepare(params: BuyWidgetParams): PrepareMoonpayResponse {
+   prepare(params: BuyWidgetParams, callerId: string): PrepareMoonpayResponse {
       const apiKey = requireConfigured(this.env.MOONPAY_API_KEY, "MoonPay");
       const secret = requireConfigured(this.env.MOONPAY_SECRET_KEY, "MoonPay");
 
@@ -55,21 +57,51 @@ export class MoonpayUrlService {
       if (buyerIp) widgetParams.allowedIpAddress = createHmac("sha256", secret).update(buyerIp).digest("base64");
       else this.logger.warn("No public buyer IP: set MOONPAY_DEV_CLIENT_IP in back/.env or MoonPay will answer 5_PARTNERS_IP_MISSING.");
 
-      return { environment: apiKey.startsWith("pk_live") ? "production" : "sandbox", params: widgetParams };
+      const payload = Buffer.from(JSON.stringify({ callerId, expiresAt: Date.now() + 10 * 60 * 1000, params: widgetParams })).toString("base64url");
+      const proof = createHmac("sha256", secret).update(`moonpay-preparation:${payload}`).digest("base64url");
+      return { environment: apiKey.startsWith("pk_live") ? "production" : "sandbox", params: widgetParams, preparationToken: `${payload}.${proof}` };
    }
 
-   /** Signs the URL the SDK built. Only URLs for our own MoonPay key are signed. */
-   sign(urlForSignature: string): string {
+   /** Signs only the caller's unexpired, server-prepared purchase, including its IP constraint. */
+   sign(urlForSignature: string, preparationToken: string, callerId: string): string {
       const apiKey = requireConfigured(this.env.MOONPAY_API_KEY, "MoonPay");
       const secret = requireConfigured(this.env.MOONPAY_SECRET_KEY, "MoonPay");
 
       let url: URL;
+      let prepared: { callerId: string; expiresAt: number; params: Record<string, string> };
       try {
+         const [payload, proof, extra] = preparationToken.split(".");
+         if (!payload || !proof || extra !== undefined) throw new Error();
+         const expected = createHmac("sha256", secret).update(`moonpay-preparation:${payload}`).digest("base64url");
+         if (proof.length !== expected.length || !timingSafeEqual(Buffer.from(proof), Buffer.from(expected))) throw new Error();
+         prepared = JSON.parse(Buffer.from(payload, "base64url").toString());
+         if (prepared.callerId !== callerId || !Number.isFinite(prepared.expiresAt) || prepared.expiresAt <= Date.now()) throw new Error();
          url = new URL(urlForSignature);
       } catch {
-         throw new BadRequestException("Invalid widget URL.");
+         throw new BadRequestException("Invalid or expired prepared widget URL.");
       }
-      if (!/(^|\.)moonpay\.com$/.test(url.hostname) || url.searchParams.get("apiKey") !== apiKey) throw new BadRequestException("This URL cannot be signed.");
+      const base = new URL(this.env.MOONPAY_WIDGET_BASE_URL);
+      if (
+         url.protocol !== "https:" ||
+         url.origin !== base.origin ||
+         !/(^|\.)moonpay\.com$/.test(url.hostname) ||
+         url.pathname !== base.pathname ||
+         url.username ||
+         url.password ||
+         url.hash ||
+         url.searchParams.get("apiKey") !== apiKey
+      )
+         throw new BadRequestException("This URL cannot be signed.");
+      for (const [key, value] of Object.entries(prepared.params)) {
+         const values = url.searchParams.getAll(key);
+         if (values.length !== 1 || values[0] !== value) throw new BadRequestException("Widget parameters do not match the prepared purchase.");
+      }
+      // SDK presentation/telemetry only. No additional purchase, wallet or redirect parameters are accepted.
+      const sdkParams = new Set(["mpSdk"]);
+      for (const key of url.searchParams.keys()) {
+         if (url.searchParams.getAll(key).length !== 1 || (!Object.hasOwn(prepared.params, key) && !sdkParams.has(key)))
+            throw new BadRequestException("Unexpected widget parameter.");
+      }
 
       return createHmac("sha256", secret).update(url.search).digest("base64");
    }

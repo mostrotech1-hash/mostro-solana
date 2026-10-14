@@ -8,6 +8,12 @@ import { ENV, type Env } from "./config/env";
 export async function createApp(): Promise<{ app: NestExpressApplication; env: Env }> {
    const app = await NestFactory.create<NestExpressApplication>(AppModule);
    const env = app.get<Env>(ENV);
+   app.set(
+      "trust proxy",
+      env.TRUSTED_PROXIES?.split(",")
+         .map((proxy) => proxy.trim())
+         .filter(Boolean) ?? false,
+   );
    app.enableCors({ origin: env.FRONTEND_ORIGIN, methods: ["GET", "POST", "PATCH"], allowedHeaders: ["Authorization", "Content-Type"] });
    return { app, env };
 }

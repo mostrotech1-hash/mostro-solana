@@ -59,8 +59,29 @@ export class AvatarStorageService {
       try {
          if (!url.startsWith("https://")) return null;
          const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-         if (!response.ok) return null;
-         return await this.save(userId, Buffer.from(await response.arrayBuffer()));
+         if (!response.ok || Number(response.headers.get("content-length")) > MAX_BYTES) {
+            await response.body?.cancel();
+            return null;
+         }
+         if (!response.body) return null;
+         const reader = response.body.getReader();
+         const chunks: Buffer[] = [];
+         let size = 0;
+         try {
+            while (true) {
+               const { done, value } = await reader.read();
+               if (done) break;
+               size += value.byteLength;
+               if (size > MAX_BYTES) {
+                  await reader.cancel();
+                  return null;
+               }
+               chunks.push(Buffer.from(value));
+            }
+         } finally {
+            reader.releaseLock();
+         }
+         return await this.save(userId, Buffer.concat(chunks, size));
       } catch (err) {
          this.logger.warn(`Could not store the provider picture for ${userId}: ${(err as Error).message}`);
          return null;

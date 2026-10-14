@@ -8,7 +8,6 @@ import { requireConfigured } from "../../common/http";
 export interface OpenfortIdentity {
    /** Openfort user id (`usr_...`). */
    openfortId: string;
-   loginType: LoginType;
    email: string | null;
    /** Profile picture URL given by the provider (Google, X...), when there is one. */
    imageUrl: string | null;
@@ -42,11 +41,12 @@ export class OpenfortService {
       }
       if (!session?.user?.id) throw new UnauthorizedException("Invalid or expired session.");
 
-      return { openfortId: session.user.id, loginType: await this.loginTypeOf(client, session.user.id), email: session.user.email || null, imageUrl: session.user.image ?? null };
+      return { openfortId: session.user.id, email: session.user.email || null, imageUrl: session.user.image ?? null };
    }
 
    /** Which method the user signed in with: the most recently used supported provider on the Openfort user. */
-   private async loginTypeOf(client: Openfort, userId: string): Promise<LoginType> {
+   async loginTypeOf(userId: string): Promise<LoginType> {
+      const client = this.getClient();
       try {
          const user = await client.iam.users.get(userId);
          const accounts = [...user.linkedAccounts].sort((a, b) => b.updatedAt - a.updatedAt);

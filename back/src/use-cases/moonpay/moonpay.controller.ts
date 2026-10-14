@@ -13,7 +13,7 @@ const prepareSchema = z.object({
    walletAddress: z.string().regex(BASE58_ADDRESS, "Invalid Solana wallet address."),
    amountSol: z.number().positive().max(100),
 });
-const signSchema = z.object({ urlForSignature: z.string().min(1).max(4000) });
+const signSchema = z.object({ urlForSignature: z.string().min(1).max(4000), preparationToken: z.string().min(1).max(8000) });
 
 @Controller("moonpay")
 @UseGuards(AuthGuard)
@@ -26,15 +26,13 @@ export class MoonpayController {
    @Post("prepare")
    @HttpCode(200)
    prepare(@CurrentIdentity() identity: OpenfortIdentity, @Body() body: unknown, @Req() req: Request): Promise<PrepareMoonpayResponse> {
-      // Behind a proxy the buyer is the first address of x-forwarded-for.
-      const forwarded = req.headers["x-forwarded-for"];
-      const clientIp = (Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0])?.trim() || req.socket.remoteAddress || null;
+      const clientIp = req.ip || req.socket.remoteAddress || null;
       return this.prepareWidget.execute(identity, parseBody(prepareSchema, body), clientIp);
    }
 
    @Post("sign-url")
    @HttpCode(200)
-   signUrl(@Body() body: unknown): SignMoonpayUrlResponse {
-      return this.signWidgetUrl.execute(parseBody(signSchema, body));
+   signUrl(@CurrentIdentity() identity: OpenfortIdentity, @Body() body: unknown): SignMoonpayUrlResponse {
+      return this.signWidgetUrl.execute(identity, parseBody(signSchema, body));
    }
 }

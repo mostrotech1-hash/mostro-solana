@@ -7,6 +7,8 @@ const schema = z.object({
    PORT: z.coerce.number().default(3100),
    FRONTEND_ORIGIN: z.string().default("http://localhost:4200"),
    PUBLIC_API_URL: z.string().default("http://localhost:3100"),
+   /** Comma-separated trusted proxy IPs/CIDRs. Unset means forwarded headers are ignored. */
+   TRUSTED_PROXIES: z.string().optional(),
    DATABASE_URL: z.string().min(1),
    OPENFORT_PUBLISHABLE_KEY: z.string().optional(),
    OPENFORT_SECRET_KEY: z.string().optional(),
