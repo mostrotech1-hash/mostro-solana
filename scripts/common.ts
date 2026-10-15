@@ -13,7 +13,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { AnchorProvider, BN, Program, Wallet, setProvider } from "@coral-xyz/anchor";
-import { ComputeBudgetProgram, Connection, Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { ComputeBudgetProgram, Connection, Keypair, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import idlJson from "../shared/idl/mostro.json";
 import type { Mostro } from "../shared/types/mostro";
@@ -36,20 +36,41 @@ export const PYTH_SOL_USD_FEED_ID_HEX = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8
 export const PYTH_RECEIVER_PROGRAM_ID = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
 export const CIRCLE_FAUCET_URL = "https://faucet.circle.com";
 
-export const MOST_DECIMALS = 6;
+export const TOKEN_DECIMALS = 6;
 export const USDC_DECIMALS = 6;
 export const BPS_DENOMINATOR = 10_000n;
 export const LAMPORTS_PER_SOL_BI = 1_000_000_000n;
 
-/** Pass tiers (mirror `state.rs`). */
-export const TIER_STANDARD = 0;
+/** Fixed supply and allocations (mirror `state.rs`), in base units. */
+export const TOKEN_UNIT = 1_000_000n;
+export const TOTAL_SUPPLY = 1_000_000_000n * TOKEN_UNIT;
+export const CURVE_ALLOCATION = 280_000_000n * TOKEN_UNIT;
+export const DEX_ALLOCATION = 70_000_000n * TOKEN_UNIT;
+export const MOSTRO_ALLOCATION = 150_000_000n * TOKEN_UNIT;
+export const ARTIST_ALLOCATION = 500_000_000n * TOKEN_UNIT;
+export const BURN_BPS = 8_000n;
+
+/** Pass tiers (mirror `state.rs`). Informational: pass benefits are applied by the web app. */
+export const TIER_CLASSIC = 0;
 export const TIER_VIP = 1;
 
 /** Price modes (mirror `state.rs`). */
 export const PRICE_MODE_ADMIN = 0;
 export const PRICE_MODE_PYTH = 1;
 
-/** Compute budget used for every program call (Core CPIs in `redeem_perk` are heavy). */
+/** Governance (mirror `state.rs`). */
+export const ROLE_NONE = 0;
+export const ROLE_ADMIN = 1;
+export const ROLE_SUPER_ADMIN = 2;
+export const PROPOSAL_VAULT_TRANSFER = 0;
+export const PROPOSAL_SET_MEMBER = 1;
+export const VAULT_NAMES = ["artist_reserve", "mostro_reserve", "dex_reserve", "rewards", "usdc", "treasury_usdc", "sol", "treasury_sol"] as const;
+export type VaultName = (typeof VAULT_NAMES)[number];
+export const vaultKind = (name: VaultName): number => VAULT_NAMES.indexOf(name);
+export const isCurveVault = (kind: number): boolean => kind <= 4 || kind === 6;
+export const isSolVault = (kind: number): boolean => kind === 6 || kind === 7;
+
+/** Compute budget used for every program call (Core CPIs and `create_curve` are heavy). */
 export const CU_LIMIT = 400_000;
 export const CU_PRICE_MICRO_LAMPORTS = 1_000;
 
@@ -171,10 +192,13 @@ export const configPda = (): PublicKey => pda([Buffer.from("config")]);
 export const treasuryPda = (): PublicKey => pda([Buffer.from("treasury")]);
 export const curvePda = (index: number): PublicKey => pda([Buffer.from("curve"), u32Le(index)]);
 export const mintPda = (index: number): PublicKey => pda([Buffer.from("mint"), u32Le(index)]);
+export const curveVaultPda = (curve: PublicKey): PublicKey => pda([Buffer.from("curve_vault"), curve.toBuffer()]);
+export const artistReservePda = (curve: PublicKey): PublicKey => pda([Buffer.from("artist_reserve"), curve.toBuffer()]);
+export const mostroReservePda = (curve: PublicKey): PublicKey => pda([Buffer.from("mostro_reserve"), curve.toBuffer()]);
+export const dexReservePda = (curve: PublicKey): PublicKey => pda([Buffer.from("dex_reserve"), curve.toBuffer()]);
 export const solVaultPda = (curve: PublicKey): PublicKey => pda([Buffer.from("sol_vault"), curve.toBuffer()]);
 export const rewardsVaultPda = (curve: PublicKey): PublicKey => pda([Buffer.from("rewards"), curve.toBuffer()]);
 export const artistPda = (index: number): PublicKey => pda([Buffer.from("artist"), u32Le(index)]);
-export const artistVaultPda = (artist: PublicKey, mint: PublicKey): PublicKey => pda([Buffer.from("artist_vault"), artist.toBuffer(), mint.toBuffer()]);
 export const perkPda = (artist: PublicKey, index: number): PublicKey => pda([Buffer.from("perk"), artist.toBuffer(), u32Le(index)]);
 /** Core collection of a perk: `["collection", perk, collection_salt u64 LE]`. Reads should use `perk.collection`; the salt is not stored on-chain. */
 export const collectionPda = (perk: PublicKey, collectionSalt: BN | bigint | number): PublicKey => pda([Buffer.from("collection"), perk.toBuffer(), u64Le(collectionSalt)]);
@@ -182,8 +206,12 @@ export const collectionPda = (perk: PublicKey, collectionSalt: BN | bigint | num
 export const COLLECTION_SALT = 1;
 export const assetPda = (perk: PublicKey, nonce: BN | bigint): PublicKey => pda([Buffer.from("asset"), perk.toBuffer(), u64Le(nonce)]);
 export const receiptPda = (asset: PublicKey): PublicKey => pda([Buffer.from("receipt"), asset.toBuffer()]);
-export const kycPda = (wallet: PublicKey): PublicKey => pda([Buffer.from("kyc"), wallet.toBuffer()]);
-/** Metaplex Token Metadata account of a mint (`set_curve_metadata` creates it). */
+export const blacklistPda = (wallet: PublicKey): PublicKey => pda([Buffer.from("blacklist"), wallet.toBuffer()]);
+export const spendPda = (curve: PublicKey, wallet: PublicKey): PublicKey => pda([Buffer.from("spend"), curve.toBuffer(), wallet.toBuffer()]);
+export const memberPda = (wallet: PublicKey): PublicKey => pda([Buffer.from("member"), wallet.toBuffer()]);
+export const proposalPda = (index: BN | bigint | number): PublicKey => pda([Buffer.from("proposal"), u64Le(index)]);
+export const approvalPda = (proposal: PublicKey, wallet: PublicKey): PublicKey => pda([Buffer.from("approval"), proposal.toBuffer(), wallet.toBuffer()]);
+/** Metaplex Token Metadata account of a mint (`create_curve` creates it). */
 export const metadataPda = (mint: PublicKey): PublicKey => pda([Buffer.from("metadata"), TOKEN_METADATA_PROGRAM_ID.toBuffer(), mint.toBuffer()], TOKEN_METADATA_PROGRAM_ID);
 /** `ProgramData` account of the upgradeable program (needed by `initialize_config`). */
 export const programDataPda = (programId: PublicKey = PROGRAM_ID): PublicKey => pda([programId.toBuffer()], BPF_LOADER_UPGRADEABLE_ID);
@@ -194,11 +222,32 @@ export const ataOf = (owner: PublicKey, mint: PublicKey, tokenProgram: PublicKey
 export const treasuryUsdcAta = (usdcMint: PublicKey): PublicKey => ataOf(configPda(), usdcMint);
 export const curveUsdcAta = (curve: PublicKey, usdcMint: PublicKey): PublicKey => ataOf(curve, usdcMint);
 
-/** Random u64 nonce for `redeem_perk` (seeds the asset PDA so concurrent buyers never collide). */
+/** Random u64 nonce for `redeem_perk` / `buy_perk_sol` (seeds the asset PDA so concurrent buyers never collide). */
 export function randomNonce(): BN {
    const bytes = Buffer.alloc(8);
    for (let i = 0; i < 8; i++) bytes[i] = Math.floor(Math.random() * 256);
    return new BN(bytes, "le");
+}
+
+/** Every account a buy needs besides the user-specific ones. */
+export function buyAccounts(_ctx: Ctx, curveIndex: number, mint: PublicKey, buyer: PublicKey, payer: PublicKey = buyer) {
+   const curve = curvePda(curveIndex);
+   return {
+      payer,
+      buyer,
+      config: configPda(),
+      curve,
+      mint,
+      curveVault: curveVaultPda(curve),
+      solVault: solVaultPda(curve),
+      treasury: treasuryPda(),
+      buyerAta: ataOf(buyer, mint),
+      spend: spendPda(curve, buyer),
+      blacklistEntry: blacklistPda(buyer),
+      tokenProgram: TOKEN_PROGRAM_ID,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+   };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -233,16 +282,9 @@ export function feedIdBytes(hex: string = PYTH_SOL_USD_FEED_ID_HEX): number[] {
    return Array.from(Buffer.from(clean, "hex"));
 }
 
-/** ISO 3166-1 alpha-2 country code -> `[u8; 2]`. */
-export function countryBytes(code: string): number[] {
-   const c = code.trim().toUpperCase();
-   if (!/^[A-Z]{2}$/.test(c)) throw new Error(`Country must be a 2-letter ISO code, got "${code}"`);
-   return [c.charCodeAt(0), c.charCodeAt(1)];
-}
-
-/** Whole $MOST -> base units (6 decimals) as BN. */
-export function most(amount: number | string): BN {
-   return new BN(toBaseUnits(amount, MOST_DECIMALS).toString());
+/** Whole tokens -> base units (6 decimals) as BN. */
+export function tokens(amount: number | string): BN {
+   return new BN(toBaseUnits(amount, TOKEN_DECIMALS).toString());
 }
 
 /** Whole SOL -> lamports as BN. */
@@ -266,6 +308,24 @@ export function toBaseUnits(amount: number | string, decimals: number): bigint {
 
 export function toBigInt(v: BN | bigint | number | string): bigint {
    return BigInt(v.toString());
+}
+
+/** All-`null` `SetConfigArgs`, to spread a few fields over. */
+export function emptySetConfigArgs() {
+   return {
+      buysPaused: null,
+      redeemsPaused: null,
+      priceMode: null,
+      solUsdPriceE6: null,
+      pythSolUsdAccount: null,
+      pythFeedId: null,
+      maxPriceAgeSecs: null,
+      adminPriceMaxAgeSecs: null,
+      feeBps: null,
+      launchCooldownSecs: null,
+      maxSpendPerPeriodLamports: null,
+      proposalTtlSecs: null,
+   };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -295,24 +355,19 @@ export function quoteBuyExactOut(virtualSol: bigint, virtualTokens: bigint, toke
    return { netIn: cost, fee, tokensOut };
 }
 
-/** `out = t * VQ / (VT + t)`, `fee = ceil(out * fee_bps / 10000)`. */
-export function quoteSellExactIn(virtualSol: bigint, virtualTokens: bigint, tokensIn: bigint, feeBps: number): { grossOut: bigint; fee: bigint; netOut: bigint } {
-   if (tokensIn <= 0n) throw new Error("tokensIn must be > 0");
-   const out = (tokensIn * virtualSol) / (virtualTokens + tokensIn);
-   const fee = ceilDiv(out * BigInt(feeBps), BPS_DENOMINATOR);
-   return { grossOut: out, fee, netOut: out - fee };
+/** `split_redeem`: burn 80 % (floor), the rest to rewards. */
+export function splitRedeem(amount: bigint): { burned: bigint; toRewards: bigint } {
+   const burned = (amount * BURN_BPS) / BPS_DENOMINATOR;
+   return { burned, toRewards: amount - burned };
 }
 
-/** Discount rounded down, like `curve::apply_discount`. */
-export function applyDiscount(price: bigint, discountBps: number): bigint {
-   return price - (price * BigInt(discountBps)) / BPS_DENOMINATOR;
-}
-
-/** `split_redeem`: burn / rewards / artist (remainder). */
-export function splitRedeem(amount: bigint, burnBps: number, rewardsBps: number): { burned: bigint; toRewards: bigint; toArtist: bigint } {
-   const burned = (amount * BigInt(burnBps)) / BPS_DENOMINATOR;
-   const toRewards = (amount * BigInt(rewardsBps)) / BPS_DENOMINATOR;
-   return { burned, toRewards, toArtist: amount - burned - toRewards };
+/** What `buy_perk_sol` does for a hybrid perk at the given curve state. */
+export function quoteHybridPerk(virtualSol: bigint, virtualTokens: bigint, priceLamports: bigint, feeBps: number) {
+   const curveHalf = priceLamports / 2n;
+   const artistHalf = priceLamports - curveHalf;
+   const leg = quoteBuyExactIn(virtualSol, virtualTokens, curveHalf, feeBps);
+   const per = splitRedeem(leg.tokensOut);
+   return { curveHalf, artistHalf, leg, tokensFromCurve: leg.tokensOut, tokensFromArtist: leg.tokensOut, burned: per.burned * 2n, toRewards: per.toRewards * 2n };
 }
 
 function ceilDiv(a: bigint, b: bigint): bigint {
@@ -367,12 +422,6 @@ export async function accountExists(connection: Connection, address: PublicKey):
 /** Compute budget instructions prepended to every program call. */
 export function computeBudgetIxs(units: number = CU_LIMIT, microLamports: number = CU_PRICE_MICRO_LAMPORTS): TransactionInstruction[] {
    return [ComputeBudgetProgram.setComputeUnitLimit({ units }), ComputeBudgetProgram.setComputeUnitPrice({ microLamports })];
-}
-
-/** Returns the `kyc` optional account for curve buys and sells: the PDA when it exists on-chain, else null. */
-export async function optionalKyc(connection: Connection, buyer: PublicKey): Promise<PublicKey | null> {
-   const k = kycPda(buyer);
-   return (await accountExists(connection, k)) ? k : null;
 }
 
 export async function tokenBalance(connection: Connection, ata: PublicKey): Promise<bigint> {
@@ -434,7 +483,7 @@ export function fmtUnits(amount: BN | bigint | number | string, decimals: number
    return symbol ? `${s} ${symbol}` : s;
 }
 
-export const fmtMost = (amount: BN | bigint | number | string): string => fmtUnits(amount, MOST_DECIMALS, "$MOST");
+export const fmtTokens = (amount: BN | bigint | number | string, symbol = "tokens"): string => fmtUnits(amount, TOKEN_DECIMALS, symbol);
 export const fmtSol = (lamports: BN | bigint | number | string): string => fmtUnits(lamports, 9, "SOL");
 export const fmtUsdc = (amount: BN | bigint | number | string): string => fmtUnits(amount, USDC_DECIMALS, "USDC");
 

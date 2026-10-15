@@ -2,6 +2,39 @@
 
 All notable changes to this repository. Dates are UTC-3 (Buenos Aires).
 
+## 2026-10-14: contract logic from the 2026-10-13 review (breaking)
+
+The program now implements the spec agreed with the CTO: fixed 1B supply per artist token split 28 / 7 / 15 / 50, buy-only curve, cold reserves behind a weighted multisig, 24 h launch cool-down, blacklist instead of KYC, anti-whale monthly SOL cap, two circuit breakers, perks paid in tokens or in SOL (hybrid) with a fixed 80 / 20 burn / rewards split, pass benefits moved to the web app. Every instruction, account layout and error code changed; `programs/mostro/docs/FRONTEND.md` section 12 has the migration table. Not deployed to devnet yet (binary 898,712 bytes against 800,000 reserved; needs `solana program extend` and a fresh config).
+
+Verified: `cargo test -p mostro --lib` 12 passing; `shared/test` 36 passing; `tests/mostro.ts` **30 passing, 0 failing** on a surfpool fork of devnet (program injected with `scripts/surfpool-load-program.js`).
+
+### Removed
+
+- `sell_tokens`, `curve::sell_exact_in`, `quoteSell` / `applySell` / `prepareSellTokens` in the SDK.
+- `Kyc` account, `set_kyc`, `config.kyc_required`, the optional `kyc` account on buys, `scripts/set-kyc.ts`.
+- On-chain pass benefits: `pass_asset` / `pass_perk` on `redeem_perk`, `Perk.discount_eligible` / `vip_only`, the four pass-benefit fields of `Config`, `Receipt.discount_bps` / `pass_used`, errors `VipOnly` / `InvalidPass` / `PassMismatch` / `InvalidDiscount`.
+- Per-perk `burn_bps` / `rewards_bps` and the config floors `min_burn_bps` / `min_rewards_bps`; `Receipt.to_artist`, `artist_vault`, `withdraw_artist_vault`, `Artist.revenue_tokens`.
+- `withdraw_treasury_sol` / `withdraw_treasury_usdc` (admin single-key withdrawals), `set_curve_metadata` (folded into `create_curve`), `CreateCurveArgs.supply_cap`, `config.paused`.
+
+### Added
+
+- `state.rs`: `TOTAL_SUPPLY`, `CURVE_ALLOCATION` (280M), `DEX_ALLOCATION` (70M), `MOSTRO_ALLOCATION` (150M), `ARTIST_ALLOCATION` (500M) with a `const` assertion; `BURN_BPS` / `REWARDS_BPS`; roles and weights; `meets_threshold` (> 51 %); accounts `Blacklist`, `Member`, `Proposal`, `Approval`, `SpendTracker`; vault PDAs `curve_vault`, `artist_reserve`, `mostro_reserve`, `dex_reserve`.
+- `create_curve` takes the artist, mints the supply into the four vaults, creates Token Metadata and revokes the mint authority in one instruction; enforces one token per artist (`ArtistHasCurve`) and `sale_start_ts >= now + launch_cooldown_secs`.
+- `instructions/governance.rs`: `create_proposal`, `approve_proposal`, `cancel_proposal`, `execute_token_transfer`, `execute_sol_transfer`, `execute_set_member`; `initialize_config` seats the admin as the founding super-admin; `emergency_pause` for any member.
+- `set_blacklist` and the seeds-checked `blacklist_entry` account on every buy and redeem; `SpendTracker` and `config.max_spend_per_period_lamports`; `config.buys_paused` / `redeems_paused`; `config.launch_cooldown_secs`, `proposal_ttl_secs`, `total_weight`, `member_count`, `proposal_count`.
+- `buy_perk_sol(nonce, max_lamports)`: hybrid perks priced in SOL (`Perk.price_lamports`), half curve / half artist wallet, tokens from `curve_vault` and `artist_reserve` burned 80 % / 20 % to rewards; `Curve.artist_reserve_used`, `Artist.revenue_lamports`, receipt fields `paid_lamports`, `tokens_from_curve`, `tokens_from_artist`, `lamports_to_curve`, `lamports_to_artist`.
+- Events `EmergencyPaused`, `BlacklistUpdated`, `MemberUpdated`, `ProposalCreated` / `Approved` / `Executed` / `Cancelled`, `VaultTransferred`; `TokensBought.quote_kind = 2` for the curve leg of a hybrid perk.
+- SDK: governance, blacklist, hybrid-perk and `create_curve` builders; `quoteHybridPerk`, `curveEligibility`, `remainingSpend`, `proposalStatus`, `meetsThreshold`, `weightNeeded`, `perkPayment`, `checkPerkPrice`; new PDAs and `OFFSETS`.
+- Scripts: `governance.ts` (members, proposals, propose, approve, execute, cancel, pause), `set-blacklist.ts`, `surfpool-load-program.js` (injects the program into a surfpool fork through `surfnet_setAccount`; `test-local.sh` uses it instead of a chunked deploy, which hung at this binary size). Seed: artist first, then its token; six perks including the hybrid "Exclusive drop" (0.2 SOL, 100 copies); `LAUNCH_COOLDOWN_SECS` and `MAX_SPEND_SOL_PER_MONTH` overrides; address map now lists every vault, the allocations and the governance snapshot.
+- Docs rewritten: ARCHITECTURE.md, FRONTEND.md (with migration notes), SECURITY.md, the READMEs.
+
+### Changed
+
+- Errors renumbered 6000..6041 (`BuysPaused`, `RedeemsPaused`, ..., `Blacklisted` 6028, `SpendCapExceeded` 6029, `ThresholdNotMet` 6040).
+- `CreatePerkArgs { kind, tier, price_tokens, price_lamports, max_supply, public_start_ts, name, uri, collection_salt }`; `SetPerkArgs` likewise; exactly one price non-zero (`InvalidPerkPrice`), each instruction refuses the other mode (`WrongPerkPayment`).
+- `InitializeConfigArgs` / `SetConfigArgs`: pass-benefit and floor fields replaced by `launch_cooldown_secs`, `max_spend_per_period_lamports`, `proposal_ttl_secs`, `buys_paused`, `redeems_paused`.
+- Demo curve: `virtual_token_reserves` 379,000,000 tokens (cap is the fixed 280M); pass tiers renamed Classic / VIP; demo perk prices rescaled (Classic pass 100,000 tokens).
+
 ## 2026-10-09 (round 2): admin price age, KYC on by default, sponsored redeem, measured costs
 
 - `scripts/demo-one-tx.ts`: the post-card step as ONE transaction (`buy_tokens_exact_out_sol` for the pass price + `redeem_perk`), buyer as the only user signer. Devnet run: 139,061 CU, 878-byte legacy transaction, tx 2T5T4Ctjmby6GyiiKhd4anVMK1r4nrjYeY2M1aBC5wUG6op2mKSCrUNontvhxXGMuzbwB5k6dryVCEqonSTR9pHG, asset wK1JY1qY84DMD7Eax12TwU47vhJK5eBcRTZ8dWGF9zH.

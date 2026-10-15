@@ -1,12 +1,20 @@
 //! Mostro on Solana.
 //!
-//! One program, four concerns:
-//! - `config`: admin with cool-off transfer, pause, fees, SOL/USD price source, KYC attestations.
-//! - `trading`: a pump.fun-style bonding curve that mints $MOST on demand for SOL or USDC.
-//! - `artist`: artists that open perks to fans and collect their share in a vault.
-//! - `perks`: perks priced in $MOST (MoOG Pass, music, events, merch). Redeeming burns part of the
-//!   payment, routes the rest, and mints a Metaplex Core asset into the perk's collection. Pass
-//!   holders get on-chain discounts, early access and VIP-only gating.
+//! One program, five concerns:
+//! - `config`: the operator key (fees, price source, circuit breakers, blacklist, onboarding).
+//! - `governance`: a weighted multisig (admins weigh 1, super-admins 2, threshold > 51 %) that is
+//!   the only way to move the cold token reserves, the SOL / USDC vaults, the treasury, and the
+//!   member list itself.
+//! - `trading`: one token per artist with a fixed 1,000,000,000 supply split 28 % curve / 7 % DEX
+//!   reserve / 15 % Mostro reserve / 50 % artist reserve, sold on a buy-only pump.fun-style curve
+//!   that opens after a 24 h cool-down and enforces a per-wallet monthly SOL cap.
+//! - `artist`: artists onboarded by the admin; they open perks and get paid in SOL.
+//! - `perks`: perks paid in tokens (`redeem_perk`) or in SOL (`buy_perk_sol`, half curve / half
+//!   artist reserve). Every redeem burns 80 % of the tokens involved, sends 20 % to the rewards
+//!   vault and mints a Metaplex Core asset whose attributes the web app reads to apply benefits.
+//!
+//! Module map: `state.rs` (accounts, seeds, constants), `errors.rs`, `events.rs`, `curve.rs` (pure
+//! math), `pricing.rs` (SOL/USD), `instructions/*` (one file per concern).
 #![allow(unexpected_cfgs)]
 
 use anchor_lang::prelude::*;
@@ -26,7 +34,7 @@ declare_id!("6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK");
 pub mod mostro {
     use super::*;
 
-    // ---- config / admin ----
+    // ---- config / operator key ----
     pub fn initialize_config(
         ctx: Context<InitializeConfig>,
         args: InitializeConfigArgs,
@@ -35,6 +43,9 @@ pub mod mostro {
     }
     pub fn set_config(ctx: Context<AdminOnly>, args: SetConfigArgs) -> Result<()> {
         instructions::config::set_config(ctx, args)
+    }
+    pub fn emergency_pause(ctx: Context<EmergencyPause>) -> Result<()> {
+        instructions::config::emergency_pause(ctx)
     }
     pub fn propose_admin(ctx: Context<AdminOnly>, new_admin: Pubkey) -> Result<()> {
         instructions::config::propose_admin(ctx, new_admin)
@@ -45,22 +56,31 @@ pub mod mostro {
     pub fn accept_admin(ctx: Context<AcceptAdmin>) -> Result<()> {
         instructions::config::accept_admin(ctx)
     }
-    pub fn set_kyc(
-        ctx: Context<SetKyc>,
-        wallet: Pubkey,
-        approved: bool,
-        country: [u8; 2],
-    ) -> Result<()> {
-        instructions::config::set_kyc(ctx, wallet, approved, country)
-    }
-    pub fn withdraw_treasury_sol(ctx: Context<WithdrawTreasurySol>, amount: u64) -> Result<()> {
-        instructions::config::withdraw_treasury_sol(ctx, amount)
-    }
-    pub fn withdraw_treasury_usdc(ctx: Context<WithdrawTreasuryUsdc>, amount: u64) -> Result<()> {
-        instructions::config::withdraw_treasury_usdc(ctx, amount)
+    pub fn set_blacklist(ctx: Context<SetBlacklist>, wallet: Pubkey, blocked: bool) -> Result<()> {
+        instructions::config::set_blacklist(ctx, wallet, blocked)
     }
 
-    // ---- curve / trading ----
+    // ---- governance (weighted multisig) ----
+    pub fn create_proposal(ctx: Context<CreateProposal>, args: CreateProposalArgs) -> Result<()> {
+        instructions::governance::create_proposal(ctx, args)
+    }
+    pub fn approve_proposal(ctx: Context<ApproveProposal>) -> Result<()> {
+        instructions::governance::approve_proposal(ctx)
+    }
+    pub fn cancel_proposal(ctx: Context<CancelProposal>) -> Result<()> {
+        instructions::governance::cancel_proposal(ctx)
+    }
+    pub fn execute_token_transfer(ctx: Context<ExecuteTokenTransfer>) -> Result<()> {
+        instructions::governance::execute_token_transfer(ctx)
+    }
+    pub fn execute_sol_transfer(ctx: Context<ExecuteSolTransfer>) -> Result<()> {
+        instructions::governance::execute_sol_transfer(ctx)
+    }
+    pub fn execute_set_member(ctx: Context<ExecuteSetMember>) -> Result<()> {
+        instructions::governance::execute_set_member(ctx)
+    }
+
+    // ---- artist tokens / primary market ----
     pub fn create_curve(ctx: Context<CreateCurve>, args: CreateCurveArgs) -> Result<()> {
         instructions::trading::create_curve(ctx, args)
     }
@@ -85,16 +105,6 @@ pub mod mostro {
     ) -> Result<()> {
         instructions::trading::buy_tokens_usdc(ctx, usdc_in, min_tokens_out)
     }
-    pub fn sell_tokens(
-        ctx: Context<SellTokens>,
-        tokens_in: u64,
-        min_lamports_out: u64,
-    ) -> Result<()> {
-        instructions::trading::sell_tokens(ctx, tokens_in, min_lamports_out)
-    }
-    pub fn set_curve_metadata(ctx: Context<SetCurveMetadata>) -> Result<()> {
-        instructions::trading::set_curve_metadata(ctx)
-    }
 
     // ---- artists ----
     pub fn create_artist(
@@ -108,9 +118,6 @@ pub mod mostro {
     pub fn set_artist(ctx: Context<ManageArtist>, args: SetArtistArgs) -> Result<()> {
         instructions::artist::set_artist(ctx, args)
     }
-    pub fn withdraw_artist_vault(ctx: Context<WithdrawArtistVault>, amount: u64) -> Result<()> {
-        instructions::artist::withdraw_artist_vault(ctx, amount)
-    }
 
     // ---- perks ----
     pub fn create_perk(ctx: Context<CreatePerk>, args: CreatePerkArgs) -> Result<()> {
@@ -121,6 +128,9 @@ pub mod mostro {
     }
     pub fn redeem_perk(ctx: Context<RedeemPerk>, nonce: u64, max_paid: u64) -> Result<()> {
         instructions::perks::redeem_perk(ctx, nonce, max_paid)
+    }
+    pub fn buy_perk_sol(ctx: Context<BuyPerkSol>, nonce: u64, max_lamports: u64) -> Result<()> {
+        instructions::perks::buy_perk_sol(ctx, nonce, max_lamports)
     }
     pub fn fulfill_receipt(ctx: Context<FulfillReceipt>) -> Result<()> {
         instructions::perks::fulfill_receipt(ctx)

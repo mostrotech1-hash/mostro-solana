@@ -3,15 +3,16 @@
  *
  *   npx ts-node scripts/seed-devnet.ts
  *
- * 1. `initialize_config` (admin = CLI wallet, fee 100 bps, admin price $112, Pyth SOL/USD wired in,
- *    split floors min_burn_bps = 0 / min_rewards_bps = 0; the perks below still use 8000 / 2000).
- * 2. `create_curve` #0 "Mostro" / "MOST" with demo params "set B", then `set_curve_metadata` (Token Metadata
- *    for the mint so wallets show "MOST") when the metadata account does not exist yet.
- * 3. `create_artist` #0 "MoOG" (authority = CLI wallet).
- * 4. Five perks on artist #0: Pass Standard, Pass VIP, Music, Event (early access demo), Merch (numbered, 100).
- *    Pass perks are admin-only on-chain; the CLI wallet is both the admin and the artist authority, so one
- *    signer creates all five. Every collection uses `collection_salt = COLLECTION_SALT` (1); the salt is
- *    recorded in the address map, and `perk.collection` on-chain stays the source of truth.
+ * 1. `initialize_config` (admin = CLI wallet, also the founding super-admin of the multisig; fee 100 bps;
+ *    admin price $112 with Pyth SOL/USD wired in; 24 h launch cool-down unless `LAUNCH_COOLDOWN_SECS` is set;
+ *    anti-whale cap from `MAX_SPEND_SOL_PER_MONTH` (default off); 7-day proposal TTL).
+ * 2. `create_artist` #0 "MoOG" (authority = CLI wallet).
+ * 3. `create_curve` #0 for artist #0: mints the fixed 1B supply into the four vaults, attaches Token Metadata
+ *    and revokes the mint authority. The curve opens after the cool-down.
+ * 4. Six perks on artist #0: Pass Classic, Pass VIP (admin-only), Music, Event (starts in 3 days), Merch
+ *    (numbered, 100) priced in tokens, and a hybrid "Exclusive drop" priced in SOL (0.2 SOL, 100 copies).
+ *    Every collection uses `collection_salt = COLLECTION_SALT` (1); the salt is recorded in the address map
+ *    and `perk.collection` on-chain stays the source of truth.
  * 5. Writes `shared/addresses/<cluster>.json` with the full address map for the frontends.
  */
 import * as fs from "fs";
@@ -20,9 +21,13 @@ import { BN } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {
+   ARTIST_ALLOCATION,
    COLLECTION_SALT,
+   CURVE_ALLOCATION,
    CU_LIMIT,
    Ctx,
+   DEX_ALLOCATION,
+   MOSTRO_ALLOCATION,
    MPL_CORE_PROGRAM_ID,
    PROGRAM_ID,
    PROGRAM_VERSION,
@@ -30,25 +35,30 @@ import {
    PYTH_SOL_USD_FEED_ID_HEX,
    PerkKindName,
    REPO_ROOT,
-   TIER_STANDARD,
+   TIER_CLASSIC,
    TIER_VIP,
    TOKEN_METADATA_PROGRAM_ID,
+   TOTAL_SUPPLY,
    USDC_MINT_DEVNET,
    accountExists,
    artistPda,
-   artistVaultPda,
+   artistReservePda,
    collectionPda,
    computeBudgetIxs,
    configPda,
    curvePda,
    curveUsdcAta,
+   curveVaultPda,
+   dexReservePda,
    explorerTx,
    feedIdBytes,
-   fmtMost,
+   fmtSol,
+   fmtTokens,
    log,
+   memberPda,
    metadataPda,
    mintPda,
-   most,
+   mostroReservePda,
    nowTs,
    perkKindArg,
    perkKindName,
@@ -58,7 +68,10 @@ import {
    run,
    section,
    setup,
+   sol,
    solVaultPda,
+   toBaseUnits,
+   tokens,
    treasuryPda,
    treasuryUsdcAta,
    warn,
@@ -71,20 +84,21 @@ const CONFIG_ARGS = {
    solUsdPriceE6: new BN(112_000_000), // $112.00
    maxPriceAgeSecs: 300,
    adminCooloffSecs: 172_800, // 48 h
-   // Protocol floors for every perk split. 0 / 0 on devnet so artists can experiment; raise with set_config.
-   minBurnBps: 0,
-   minRewardsBps: 0,
    adminPriceMaxAgeSecs: 86_400,
+   /** Product value 24 h. Override with LAUNCH_COOLDOWN_SECS=60 for a demo that opens right away. */
+   launchCooldownSecs: Number(process.env.LAUNCH_COOLDOWN_SECS ?? 86_400),
+   /** Anti-whale cap in SOL per wallet per curve per 30 days; 0 = off. Override with MAX_SPEND_SOL_PER_MONTH. */
+   maxSpendPerPeriodLamports: new BN(toBaseUnits(process.env.MAX_SPEND_SOL_PER_MONTH ?? "0", 9).toString()),
+   proposalTtlSecs: 7 * 86_400,
 };
 
-/** Curve demo params "set B": 30 SOL virtual, 1,000,000 tokens virtual, cap 800,000 tokens. */
-const CURVE_SET_B = {
-   name: "Mostro",
-   symbol: "MOST",
-   uri: "https://mostro.app/metadata/most.json",
+/** Curve demo params: 30 SOL virtual, 379,000,000 tokens virtual; the cap is the fixed 280M allocation. */
+const CURVE = {
+   name: "MoOG Token",
+   symbol: "MOOG",
+   uri: "https://mostro.app/metadata/moog.json",
    virtualSolReserves: new BN("30000000000"),
-   virtualTokenReserves: new BN("1000000000000"),
-   supplyCap: new BN("800000000000"),
+   virtualTokenReserves: new BN("379000000000000"),
    saleStartTs: new BN(0),
 };
 
@@ -96,13 +110,12 @@ const ARTIST = {
 interface PerkSpec {
    kind: PerkKindName;
    tier: number;
-   priceMost: number;
-   burnBps: number;
-   rewardsBps: number;
+   /** Whole tokens; 0 for a hybrid perk. */
+   priceTokens: number;
+   /** Whole SOL; 0 for a token-priced perk. */
+   priceSol: number;
    maxSupply: number;
    publicStartTs: () => BN;
-   vipOnly: boolean;
-   discountEligible: boolean;
    name: string;
    uri: string;
 }
@@ -112,69 +125,63 @@ const THREE_DAYS = 3 * 24 * 60 * 60;
 const PERKS: PerkSpec[] = [
    {
       kind: "pass",
-      tier: TIER_STANDARD,
-      priceMost: 1_200,
-      burnBps: 8_000,
-      rewardsBps: 2_000,
+      tier: TIER_CLASSIC,
+      priceTokens: 100_000,
+      priceSol: 0,
       maxSupply: 0,
       publicStartTs: () => new BN(0),
-      vipOnly: false,
-      discountEligible: false,
-      name: "MoOG Pass Standard",
-      uri: "https://mostro.app/metadata/perks/pass-standard.json",
+      name: "Mostro Pass Classic",
+      uri: "https://mostro.app/metadata/perks/pass-classic.json",
    },
    {
       kind: "pass",
       tier: TIER_VIP,
-      priceMost: 3_750,
-      burnBps: 8_000,
-      rewardsBps: 2_000,
+      priceTokens: 300_000,
+      priceSol: 0,
       maxSupply: 0,
       publicStartTs: () => new BN(0),
-      vipOnly: false,
-      discountEligible: false,
-      name: "MoOG Pass VIP",
+      name: "Mostro Pass VIP",
       uri: "https://mostro.app/metadata/perks/pass-vip.json",
    },
    {
       kind: "music",
       tier: 0,
-      priceMost: 50,
-      burnBps: 8_000,
-      rewardsBps: 2_000,
+      priceTokens: 10_000,
+      priceSol: 0,
       maxSupply: 0,
       publicStartTs: () => new BN(0),
-      vipOnly: false,
-      discountEligible: true,
       name: "Unreleased track",
       uri: "https://mostro.app/metadata/perks/unreleased-track.json",
    },
    {
       kind: "event",
       tier: 0,
-      priceMost: 900,
-      burnBps: 8_000,
-      rewardsBps: 2_000,
+      priceTokens: 50_000,
+      priceSol: 0,
       maxSupply: 0,
-      // Public in 3 days: Standard pass holders get in 24 h early, VIP 72 h early (right away).
       publicStartTs: () => new BN(nowTs() + THREE_DAYS),
-      vipOnly: false,
-      discountEligible: false,
       name: "Listening session",
       uri: "https://mostro.app/metadata/perks/listening-session.json",
    },
    {
       kind: "merch",
       tier: 0,
-      priceMost: 1_500,
-      burnBps: 8_000,
-      rewardsBps: 2_000,
+      priceTokens: 20_000,
+      priceSol: 0,
       maxSupply: 100,
       publicStartTs: () => new BN(0),
-      vipOnly: false,
-      discountEligible: true,
       name: "Numbered tee",
       uri: "https://mostro.app/metadata/perks/numbered-tee.json",
+   },
+   {
+      kind: "music",
+      tier: 0,
+      priceTokens: 0,
+      priceSol: 0.2,
+      maxSupply: 100,
+      publicStartTs: () => new BN(0),
+      name: "Exclusive drop",
+      uri: "https://mostro.app/metadata/perks/exclusive-drop.json",
    },
 ];
 
@@ -191,7 +198,9 @@ async function ensureConfig(ctx: Ctx, usdcMint: PublicKey): Promise<void> {
       log("exists, admin", c.admin);
       log("fee bps", c.feeBps);
       log("price mode", c.priceMode);
-      log("split floors", `burn >= ${c.minBurnBps} bps, rewards >= ${c.minRewardsBps} bps`);
+      log("launch cool-down", `${c.launchCooldownSecs}s`);
+      log("spend cap", c.maxSpendPerPeriodLamports.isZero() ? "off" : `${fmtSol(c.maxSpendPerPeriodLamports)} / 30 days`);
+      log("members / weight", `${c.memberCount} / ${c.totalWeight}`);
       log("curves / artists", `${c.curveCount} / ${c.artistCount}`);
       if (!c.admin.equals(ctx.wallet.publicKey)) warn(`CLI wallet ${ctx.wallet.publicKey.toBase58()} is not the admin; later steps will fail.`);
       return;
@@ -205,9 +214,10 @@ async function ensureConfig(ctx: Ctx, usdcMint: PublicKey): Promise<void> {
          pythSolUsdAccount: PYTH_SOL_USD_ACCOUNT,
          pythFeedId: feedIdBytes(PYTH_SOL_USD_FEED_ID_HEX),
          adminCooloffSecs: CONFIG_ARGS.adminCooloffSecs,
-         minBurnBps: CONFIG_ARGS.minBurnBps,
-         minRewardsBps: CONFIG_ARGS.minRewardsBps,
          adminPriceMaxAgeSecs: CONFIG_ARGS.adminPriceMaxAgeSecs,
+         launchCooldownSecs: CONFIG_ARGS.launchCooldownSecs,
+         maxSpendPerPeriodLamports: CONFIG_ARGS.maxSpendPerPeriodLamports,
+         proposalTtlSecs: CONFIG_ARGS.proposalTtlSecs,
       })
       .accountsStrict({
          payer: ctx.wallet.publicKey,
@@ -215,6 +225,7 @@ async function ensureConfig(ctx: Ctx, usdcMint: PublicKey): Promise<void> {
          treasury: treasuryPda(),
          usdcMint,
          treasuryUsdc: treasuryUsdcAta(usdcMint),
+         adminMember: memberPda(ctx.wallet.publicKey),
          program: PROGRAM_ID,
          programData: programDataPda(),
          usdcTokenProgram: TOKEN_PROGRAM_ID,
@@ -224,80 +235,6 @@ async function ensureConfig(ctx: Ctx, usdcMint: PublicKey): Promise<void> {
       .preInstructions(computeBudgetIxs())
       .rpc();
    log("initialize_config", explorerTx(sig, ctx.cluster));
-}
-
-async function ensureCurve(ctx: Ctx, index: number, usdcMint: PublicKey): Promise<void> {
-   section(`Curve #${index}`);
-   const curve = curvePda(index);
-   const mint = mintPda(index);
-   log("curve", curve);
-   log("mint", mint);
-   log("sol vault", solVaultPda(curve));
-   log("rewards vault", rewardsVaultPda(curve));
-   log("usdc vault", curveUsdcAta(curve, usdcMint));
-   if (await accountExists(ctx.connection, curve)) {
-      const c = await ctx.program.account.curve.fetch(curve);
-      log("exists", `${c.name} (${c.symbol}), sold ${fmtMost(c.tokensSold)}, complete=${c.complete}`);
-      await ensureCurveMetadata(ctx, index);
-      return;
-   }
-   const config = await ctx.program.account.config.fetch(configPda());
-   if (config.curveCount !== index) throw new Error(`Cannot create curve #${index}: config.curve_count is ${config.curveCount}`);
-   const sig = await ctx.program.methods
-      .createCurve({
-         name: CURVE_SET_B.name,
-         symbol: CURVE_SET_B.symbol,
-         uri: CURVE_SET_B.uri,
-         virtualSolReserves: CURVE_SET_B.virtualSolReserves,
-         virtualTokenReserves: CURVE_SET_B.virtualTokenReserves,
-         supplyCap: CURVE_SET_B.supplyCap,
-         saleStartTs: CURVE_SET_B.saleStartTs,
-      })
-      .accountsStrict({
-         admin: ctx.wallet.publicKey,
-         config: configPda(),
-         curve,
-         mint,
-         solVault: solVaultPda(curve),
-         rewardsVault: rewardsVaultPda(curve),
-         usdcMint,
-         usdcVault: curveUsdcAta(curve, usdcMint),
-         tokenProgram: TOKEN_PROGRAM_ID,
-         usdcTokenProgram: TOKEN_PROGRAM_ID,
-         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-         systemProgram: SystemProgram.programId,
-      })
-      .preInstructions(computeBudgetIxs())
-      .rpc();
-   log("create_curve", explorerTx(sig, ctx.cluster));
-   await ensureCurveMetadata(ctx, index);
-}
-
-/** Token Metadata for the curve mint. Idempotent: skipped when the metadata account already exists (it can only be created once). */
-async function ensureCurveMetadata(ctx: Ctx, index: number): Promise<void> {
-   const curve = curvePda(index);
-   const mint = mintPda(index);
-   const metadata = metadataPda(mint);
-   log("token metadata", metadata);
-   if (await accountExists(ctx.connection, metadata)) {
-      log("metadata exists", "skipping set_curve_metadata");
-      return;
-   }
-   const sig = await ctx.program.methods
-      .setCurveMetadata()
-      .accountsStrict({
-         admin: ctx.wallet.publicKey,
-         config: configPda(),
-         curve,
-         mint,
-         metadata,
-         tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-         systemProgram: SystemProgram.programId,
-         rent: SYSVAR_RENT_PUBKEY,
-      })
-      .preInstructions(computeBudgetIxs())
-      .rpc();
-   log("set_curve_metadata", explorerTx(sig, ctx.cluster));
 }
 
 async function ensureArtist(ctx: Ctx, index: number): Promise<void> {
@@ -313,15 +250,69 @@ async function ensureArtist(ctx: Ctx, index: number): Promise<void> {
    if (config.artistCount !== index) throw new Error(`Cannot create artist #${index}: config.artist_count is ${config.artistCount}`);
    const sig = await ctx.program.methods
       .createArtist(ctx.wallet.publicKey, ARTIST.name, ARTIST.uri)
+      .accountsStrict({ admin: ctx.wallet.publicKey, config: configPda(), artist, systemProgram: SystemProgram.programId })
+      .preInstructions(computeBudgetIxs())
+      .rpc();
+   log("create_artist", explorerTx(sig, ctx.cluster));
+}
+
+async function ensureCurve(ctx: Ctx, index: number, artistIndex: number, usdcMint: PublicKey): Promise<void> {
+   section(`Curve #${index} (artist #${artistIndex})`);
+   const curve = curvePda(index);
+   const mint = mintPda(index);
+   const artist = artistPda(artistIndex);
+   log("curve", curve);
+   log("mint", mint);
+   log("curve vault (hot)", curveVaultPda(curve));
+   log("artist reserve (cold)", artistReservePda(curve));
+   log("mostro reserve (cold)", mostroReservePda(curve));
+   log("dex reserve (cold)", dexReservePda(curve));
+   log("rewards vault", rewardsVaultPda(curve));
+   log("sol vault", solVaultPda(curve));
+   log("usdc vault", curveUsdcAta(curve, usdcMint));
+   log("token metadata", metadataPda(mint));
+   if (await accountExists(ctx.connection, curve)) {
+      const c = await ctx.program.account.curve.fetch(curve);
+      log("exists", `${c.name} (${c.symbol}), sold ${fmtTokens(c.tokensSold, c.symbol)}, opens ${new Date(c.saleStartTs.toNumber() * 1000).toISOString()}, complete=${c.complete}`);
+      return;
+   }
+   const config = await ctx.program.account.config.fetch(configPda());
+   if (config.curveCount !== index) throw new Error(`Cannot create curve #${index}: config.curve_count is ${config.curveCount}`);
+   const a = await ctx.program.account.artist.fetch(artist);
+   if (!a.curve.equals(PublicKey.default)) throw new Error(`Artist #${artistIndex} already has token ${a.curve.toBase58()}`);
+   const sig = await ctx.program.methods
+      .createCurve(CURVE)
       .accountsStrict({
          admin: ctx.wallet.publicKey,
          config: configPda(),
          artist,
+         curve,
+         mint,
+         curveVault: curveVaultPda(curve),
+         artistReserve: artistReservePda(curve),
+         mostroReserve: mostroReservePda(curve),
+         dexReserve: dexReservePda(curve),
+         rewardsVault: rewardsVaultPda(curve),
+         solVault: solVaultPda(curve),
+         usdcMint,
+         usdcVault: curveUsdcAta(curve, usdcMint),
+         metadata: metadataPda(mint),
+         tokenProgram: TOKEN_PROGRAM_ID,
+         usdcTokenProgram: TOKEN_PROGRAM_ID,
+         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+         tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
          systemProgram: SystemProgram.programId,
+         rent: SYSVAR_RENT_PUBKEY,
       })
-      .preInstructions(computeBudgetIxs())
+      .preInstructions(computeBudgetIxs(CU_LIMIT))
       .rpc();
-   log("create_artist", explorerTx(sig, ctx.cluster));
+   log("create_curve", explorerTx(sig, ctx.cluster));
+   const c = await ctx.program.account.curve.fetch(curve);
+   log("opens", new Date(c.saleStartTs.toNumber() * 1000).toISOString());
+   log(
+      "supply",
+      `${fmtTokens(TOTAL_SUPPLY, c.symbol)}: curve ${fmtTokens(CURVE_ALLOCATION)}, artist ${fmtTokens(ARTIST_ALLOCATION)}, mostro ${fmtTokens(MOSTRO_ALLOCATION)}, dex ${fmtTokens(DEX_ALLOCATION)}`,
+   );
 }
 
 async function ensurePerks(ctx: Ctx, artistIndex: number, curveIndex: number): Promise<void> {
@@ -329,12 +320,12 @@ async function ensurePerks(ctx: Ctx, artistIndex: number, curveIndex: number): P
    const curve = curvePda(curveIndex);
    const mint = mintPda(curveIndex);
    section(`Perks on artist #${artistIndex}`);
-   log("artist vault", artistVaultPda(artist, mint));
    for (let i = 0; i < PERKS.length; i++) {
       const spec = PERKS[i];
       const perk = perkPda(artist, i);
       const collection = collectionPda(perk, COLLECTION_SALT);
-      log(`perk #${i}`, `${perk.toBase58()} (${spec.kind}${spec.kind === "pass" ? ` tier ${spec.tier}` : ""}, ${spec.name})`);
+      const priceLabel = spec.priceSol > 0 ? `${spec.priceSol} SOL (hybrid)` : `${spec.priceTokens.toLocaleString("en-US")} tokens`;
+      log(`perk #${i}`, `${perk.toBase58()} (${spec.kind}${spec.kind === "pass" ? ` tier ${spec.tier}` : ""}, ${spec.name}, ${priceLabel})`);
       log(`collection #${i}`, `${collection.toBase58()} (salt ${COLLECTION_SALT})`);
       if (await accountExists(ctx.connection, perk)) {
          const p = await ctx.program.account.perk.fetch(perk);
@@ -343,7 +334,7 @@ async function ensurePerks(ctx: Ctx, artistIndex: number, curveIndex: number): P
          if (onChainKind !== spec.kind || p.tier !== spec.tier) {
             warn(`perk #${i} exists as ${onChainKind} tier ${p.tier}, expected ${spec.kind} tier ${spec.tier}; leaving it untouched.`);
          } else {
-            log(`exists #${i}`, `${p.name}, ${fmtMost(p.price)}, sold ${p.sold}`);
+            log(`exists #${i}`, `${p.name}, sold ${p.sold}`);
          }
          continue;
       }
@@ -353,20 +344,14 @@ async function ensurePerks(ctx: Ctx, artistIndex: number, curveIndex: number): P
       if (spec.kind === "pass" && !config.admin.equals(ctx.wallet.publicKey)) {
          throw new Error(`Cannot create perk #${i}: Pass perks are admin-only and the CLI wallet is not config.admin (${config.admin.toBase58()}).`);
       }
-      if (spec.burnBps < config.minBurnBps || spec.rewardsBps < config.minRewardsBps) {
-         throw new Error(`Cannot create perk #${i}: split ${spec.burnBps}/${spec.rewardsBps} is below the config floors ${config.minBurnBps}/${config.minRewardsBps}.`);
-      }
       const sig = await ctx.program.methods
          .createPerk({
             kind: perkKindArg(spec.kind),
             tier: spec.tier,
-            price: most(spec.priceMost),
-            burnBps: spec.burnBps,
-            rewardsBps: spec.rewardsBps,
+            priceTokens: tokens(spec.priceTokens),
+            priceLamports: sol(spec.priceSol),
             maxSupply: spec.maxSupply,
             publicStartTs: spec.publicStartTs(),
-            vipOnly: spec.vipOnly,
-            discountEligible: spec.discountEligible,
             name: spec.name,
             uri: spec.uri,
             collectionSalt: new BN(COLLECTION_SALT),
@@ -379,9 +364,7 @@ async function ensurePerks(ctx: Ctx, artistIndex: number, curveIndex: number): P
             mint,
             perk,
             collection,
-            artistVault: artistVaultPda(artist, mint),
             mplCoreProgram: MPL_CORE_PROGRAM_ID,
-            tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
          })
          .preInstructions(computeBudgetIxs(CU_LIMIT))
@@ -402,13 +385,15 @@ interface PerkEntry {
    kind: PerkKindName;
    tier: number;
    name: string;
-   /** Price in $MOST base units (6 decimals), as a decimal string. */
-   price: string;
+   /** `"tokens"` -> `redeem_perk`, `"sol"` -> `buy_perk_sol`. */
+   payment: "tokens" | "sol";
+   /** Price in token base units (6 decimals), as a decimal string; "0" for hybrid perks. */
+   priceTokens: string;
+   /** Price in lamports, as a decimal string; "0" for token-priced perks. */
+   priceLamports: string;
    priceUi: number;
    maxSupply: number;
    publicStartTs: number;
-   vipOnly: boolean;
-   discountEligible: boolean;
 }
 
 interface AddressMap {
@@ -423,11 +408,31 @@ interface AddressMap {
    treasury: string;
    treasuryUsdc: string;
    admin: string;
-   curves: { index: number; curve: string; mint: string; solVault: string; rewardsVault: string; usdcVault: string; name: string; symbol: string; decimals: number }[];
-   artists: { index: number; artist: string; authority: string; name: string; vault: string; perks: PerkEntry[] }[];
-   passBenefits: { standardDiscountBps: number; vipDiscountBps: number; standardEarlySecs: number; vipEarlySecs: number };
-   /** Protocol floors every perk split must meet (`create_perk` / `set_perk` fail with `InvalidBps` below them). */
-   splitFloors: { minBurnBps: number; minRewardsBps: number };
+   /** Fixed supply split, in base units. */
+   allocations: { totalSupply: string; curve: string; artistReserve: string; mostroReserve: string; dexReserve: string };
+   /** Governance snapshot at seed time. */
+   governance: { totalWeight: number; memberCount: number; proposalTtlSecs: number; members: { wallet: string; role: number }[] };
+   launchCooldownSecs: number;
+   maxSpendPerPeriodLamports: string;
+   curves: {
+      index: number;
+      artist: string;
+      curve: string;
+      mint: string;
+      curveVault: string;
+      artistReserve: string;
+      mostroReserve: string;
+      dexReserve: string;
+      solVault: string;
+      rewardsVault: string;
+      usdcVault: string;
+      metadata: string;
+      name: string;
+      symbol: string;
+      decimals: number;
+      saleStartTs: number;
+   }[];
+   artists: { index: number; artist: string; authority: string; curve: string; name: string; perks: PerkEntry[] }[];
    deployedAt: string;
    programVersion: string;
 }
@@ -440,14 +445,21 @@ async function buildAddressMap(ctx: Ctx, usdcMint: PublicKey): Promise<AddressMa
       const c = await ctx.program.account.curve.fetch(curve);
       curves.push({
          index: i,
+         artist: c.artist.toBase58(),
          curve: curve.toBase58(),
          mint: c.mint.toBase58(),
+         curveVault: curveVaultPda(curve).toBase58(),
+         artistReserve: artistReservePda(curve).toBase58(),
+         mostroReserve: mostroReservePda(curve).toBase58(),
+         dexReserve: dexReservePda(curve).toBase58(),
          solVault: solVaultPda(curve).toBase58(),
          rewardsVault: rewardsVaultPda(curve).toBase58(),
          usdcVault: curveUsdcAta(curve, usdcMint).toBase58(),
+         metadata: metadataPda(c.mint).toBase58(),
          name: c.name,
          symbol: c.symbol,
          decimals: 6,
+         saleStartTs: c.saleStartTs.toNumber(),
       });
    }
    const artists: AddressMap["artists"] = [];
@@ -455,11 +467,10 @@ async function buildAddressMap(ctx: Ctx, usdcMint: PublicKey): Promise<AddressMa
       const artist = artistPda(i);
       const a = await ctx.program.account.artist.fetch(artist);
       const perks: PerkEntry[] = [];
-      let vaultMint: PublicKey | null = null;
       for (let j = 0; j < a.perkCount; j++) {
          const perk = perkPda(artist, j);
          const p = await ctx.program.account.perk.fetch(perk);
-         vaultMint = vaultMint ?? p.mint;
+         const hybrid = !p.priceLamports.isZero();
          perks.push({
             index: j,
             perk: perk.toBase58(),
@@ -468,24 +479,17 @@ async function buildAddressMap(ctx: Ctx, usdcMint: PublicKey): Promise<AddressMa
             kind: perkKindName(p.kind),
             tier: p.tier,
             name: p.name,
-            price: p.price.toString(),
-            priceUi: Number(p.price.toString()) / 1e6,
+            payment: hybrid ? "sol" : "tokens",
+            priceTokens: p.priceTokens.toString(),
+            priceLamports: p.priceLamports.toString(),
+            priceUi: hybrid ? Number(p.priceLamports.toString()) / 1e9 : Number(p.priceTokens.toString()) / 1e6,
             maxSupply: p.maxSupply,
             publicStartTs: p.publicStartTs.toNumber(),
-            vipOnly: p.vipOnly,
-            discountEligible: p.discountEligible,
          });
       }
-      const mintForVault = vaultMint ?? (curves[0] ? new PublicKey(curves[0].mint) : mintPda(0));
-      artists.push({
-         index: i,
-         artist: artist.toBase58(),
-         authority: a.authority.toBase58(),
-         name: a.name,
-         vault: artistVaultPda(artist, mintForVault).toBase58(),
-         perks,
-      });
+      artists.push({ index: i, artist: artist.toBase58(), authority: a.authority.toBase58(), curve: a.curve.toBase58(), name: a.name, perks });
    }
+   const members = (await ctx.program.account.member.all()).filter((m) => m.account.role !== 0).map((m) => ({ wallet: m.account.wallet.toBase58(), role: m.account.role }));
    return {
       programId: PROGRAM_ID.toBase58(),
       cluster: ctx.cluster.name,
@@ -498,15 +502,18 @@ async function buildAddressMap(ctx: Ctx, usdcMint: PublicKey): Promise<AddressMa
       treasury: treasuryPda().toBase58(),
       treasuryUsdc: treasuryUsdcAta(usdcMint).toBase58(),
       admin: config.admin.toBase58(),
+      allocations: {
+         totalSupply: TOTAL_SUPPLY.toString(),
+         curve: CURVE_ALLOCATION.toString(),
+         artistReserve: ARTIST_ALLOCATION.toString(),
+         mostroReserve: MOSTRO_ALLOCATION.toString(),
+         dexReserve: DEX_ALLOCATION.toString(),
+      },
+      governance: { totalWeight: config.totalWeight, memberCount: config.memberCount, proposalTtlSecs: config.proposalTtlSecs, members },
+      launchCooldownSecs: config.launchCooldownSecs,
+      maxSpendPerPeriodLamports: config.maxSpendPerPeriodLamports.toString(),
       curves,
       artists,
-      passBenefits: {
-         standardDiscountBps: config.standardDiscountBps,
-         vipDiscountBps: config.vipDiscountBps,
-         standardEarlySecs: config.standardEarlySecs,
-         vipEarlySecs: config.vipEarlySecs,
-      },
-      splitFloors: { minBurnBps: config.minBurnBps, minRewardsBps: config.minRewardsBps },
       deployedAt: new Date().toISOString(),
       programVersion: PROGRAM_VERSION,
    };
@@ -531,15 +538,15 @@ run(async () => {
    log("program version", PROGRAM_VERSION);
    const balance = await ctx.connection.getBalance(ctx.wallet.publicKey);
    log("wallet balance", `${balance / 1e9} SOL`);
-   if (balance < 0.2e9) warn("Less than 0.2 SOL; seeding needs rent for ~10 accounts plus 5 Core collections.");
+   if (balance < 0.3e9) warn("Less than 0.3 SOL; seeding needs rent for ~15 accounts plus 6 Core collections.");
    if (!(await accountExists(ctx.connection, PROGRAM_ID))) throw new Error(`Program ${PROGRAM_ID.toBase58()} is not deployed on ${ctx.cluster.name}.`);
 
    const usdcMint = USDC_MINT_DEVNET;
    if (ctx.cluster.name !== "devnet") warn(`Using the devnet USDC mint ${usdcMint.toBase58()} on ${ctx.cluster.name}; override common.ts if that is wrong.`);
 
    await ensureConfig(ctx, usdcMint);
-   await ensureCurve(ctx, 0, usdcMint);
    await ensureArtist(ctx, 0);
+   await ensureCurve(ctx, 0, 0, usdcMint);
    await ensurePerks(ctx, 0, 0);
 
    section("Address map");

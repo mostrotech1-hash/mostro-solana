@@ -1,15 +1,16 @@
 /**
  * BN.js mirror of `programs/mostro/src/curve.rs`.
  *
- * Constant-product bonding curve on virtual reserves (pump.fun style). Every formula and every
- * rounding step is the same as on-chain, so a quote computed here equals what the program will
- * mint or pay out to the unit:
+ * Constant-product bonding curve on virtual reserves (pump.fun style), buy side only: the primary
+ * market has no sell instruction. Every formula and every rounding step is the same as on-chain,
+ * so a quote computed here equals what the program will transfer to the unit:
  *   - tokens out: floor
  *   - exact-out cost: floor + 1
  *   - fees: ceil
  * Intermediates are checked against u128 and results against u64 exactly like the Rust code.
  */
 import BN from "bn.js";
+import { BURN_BPS } from "./constants";
 
 export type BNLike = BN | number | string | bigint;
 
@@ -18,7 +19,7 @@ export const U64_MAX = new BN("18446744073709551615");
 export const U128_MAX = new BN("340282366920938463463374607431768211455");
 const E9 = new BN(1_000_000_000);
 
-export type CurveErrorCode = "MathOverflow" | "InvalidAmount" | "CurveSoldOut" | "InvalidCurveParams" | "InvalidBps" | "InvalidDiscount";
+export type CurveErrorCode = "MathOverflow" | "InvalidAmount" | "CurveSoldOut" | "InvalidCurveParams" | "InvalidBps";
 
 /** Thrown with the same error name the program would return. */
 export class CurveMathError extends Error {
@@ -79,22 +80,14 @@ export interface BuyQuote {
    totalIn: BN;
 }
 
-export interface SellQuote {
-   /** Gross quote leaving the reserves. */
-   grossOut: BN;
-   fee: BN;
-   /** What the seller receives. */
-   netOut: BN;
-}
-
 /** Spot price in quote-per-token scaled by 1e9. Informational only. */
 export function spotPriceE9(virtualQuote: BNLike, virtualTokens: BNLike): BN {
    return div(mul(bn(virtualQuote), E9), bn(virtualTokens));
 }
 
 /**
- * Buy with an exact quote amount (`buy_tokens_sol`, `buy_tokens_usdc` after USD->lamports).
- * `net = (q - 1) * 10000 / (10000 + fee_bps)`, `out = net * VT / (VQ + net)`.
+ * Buy with an exact quote amount (`buy_tokens_sol`, `buy_tokens_usdc` after USD->lamports, and the
+ * curve half of `buy_perk_sol`). `net = (q - 1) * 10000 / (10000 + fee_bps)`, `out = net * VT / (VQ + net)`.
  */
 export function quoteBuyExactIn(virtualQuote: BNLike, virtualTokens: BNLike, quoteIn: BNLike, feeBps: number): BuyQuote {
    const q = bn(quoteIn);
@@ -126,21 +119,6 @@ export function quoteBuyExactOut(virtualQuote: BNLike, virtualTokens: BNLike, to
    return { netIn, fee: feeU, tokensOut: u64(t), totalIn: u64(netIn.add(feeU)) };
 }
 
-/**
- * Sell an exact token amount (`sell_tokens`).
- * `out = t * VQ / (VT + t)`, `fee = ceil(out * fee_bps / 10000)`.
- */
-export function quoteSell(virtualQuote: BNLike, virtualTokens: BNLike, tokensIn: BNLike, feeBps: number): SellQuote {
-   const t = bn(tokensIn);
-   if (t.isZero() || t.isNeg()) throw new CurveMathError("InvalidAmount", "tokens_in must be > 0");
-   const vq = bn(virtualQuote);
-   const vt = bn(virtualTokens);
-   const out = div(mul(t, vq), add(vt, t));
-   const fee = ceilDiv(mul(out, new BN(feeBps)), BPS);
-   if (out.lt(fee)) throw new CurveMathError("InvalidAmount", "payout smaller than fee");
-   return { grossOut: u64(out), fee: u64(fee), netOut: u64(out.sub(fee)) };
-}
-
 /** Quote needed (before fees) to sell out the curve from genesis. Derived, never stored. */
 export function quoteToComplete(virtualQuote0: BNLike, virtualTokens0: BNLike, supplyCap: BNLike): BN {
    const vq0 = bn(virtualQuote0);
@@ -155,28 +133,55 @@ export function quoteToComplete(virtualQuote0: BNLike, virtualTokens0: BNLike, s
 export interface RedeemSplit {
    burn: BN;
    rewards: BN;
-   artist: BN;
 }
 
-/** Split a redeemed amount into burn / rewards / artist shares. Remainder goes to the artist. */
-export function splitRedeem(amount: BNLike, burnBps: number, rewardsBps: number): RedeemSplit {
-   if (burnBps < 0 || rewardsBps < 0 || burnBps + rewardsBps > 10_000) throw new CurveMathError("InvalidBps");
+/** The fixed redeem split: burn 80 % (floor), the remainder to the rewards vault. */
+export function splitRedeem(amount: BNLike): RedeemSplit {
    const a = bn(amount);
-   const burn = u64(div(a.mul(new BN(burnBps)), BPS));
-   const rewards = u64(div(a.mul(new BN(rewardsBps)), BPS));
-   const artist = a.sub(burn).sub(rewards);
-   if (artist.isNeg()) throw new CurveMathError("MathOverflow");
-   return { burn, rewards, artist };
+   const burn = u64(div(a.mul(new BN(BURN_BPS)), BPS));
+   return { burn, rewards: a.sub(burn) };
 }
 
-/** Apply a basis-point discount, rounding the discount down. */
-export function applyDiscount(price: BNLike, discountBps: number): BN {
-   if (discountBps < 0 || discountBps > 10_000) throw new CurveMathError("InvalidBps");
-   const p = bn(price);
-   const d = u64(div(p.mul(new BN(discountBps)), BPS));
-   const r = p.sub(d);
-   if (r.isNeg()) throw new CurveMathError("InvalidDiscount");
-   return r;
+/** Hybrid perk: `(curveHalf, artistHalf)` of the SOL price; the odd lamport goes to the artist. */
+export function hybridHalves(priceLamports: BNLike): { curveHalf: BN; artistHalf: BN } {
+   const p = bn(priceLamports);
+   const curveHalf = p.divn(2);
+   return { curveHalf, artistHalf: p.sub(curveHalf) };
+}
+
+export interface HybridPerkQuote {
+   priceLamports: BN;
+   curveHalf: BN;
+   artistHalf: BN;
+   /** The curve leg as a buy: `netIn` to `sol_vault`, `fee` to the treasury. */
+   curveLeg: BuyQuote;
+   /** Tokens taken from `curve_vault`; the same amount leaves `artist_reserve`. */
+   tokensFromCurve: BN;
+   tokensFromArtist: BN;
+   /** Totals over both legs. */
+   burned: BN;
+   toRewards: BN;
+}
+
+/**
+ * Everything `buy_perk_sol` will do for a hybrid perk at the current curve state: half of the price buys
+ * on the curve (fee included), the other half goes to the artist wallet, and `2 * tokensOut` are
+ * burned 80 % / sent to rewards 20 % (split applied per vault, so totals are `2 *` the per-vault split).
+ */
+export function quoteHybridPerk(curve: Pick<CurveLike, "virtualSolReserves" | "virtualTokenReserves">, priceLamports: BNLike, feeBps: number): HybridPerkQuote {
+   const { curveHalf, artistHalf } = hybridHalves(priceLamports);
+   const curveLeg = quoteBuyExactIn(curve.virtualSolReserves, curve.virtualTokenReserves, curveHalf, feeBps);
+   const perVault = splitRedeem(curveLeg.tokensOut);
+   return {
+      priceLamports: bn(priceLamports),
+      curveHalf,
+      artistHalf,
+      curveLeg,
+      tokensFromCurve: curveLeg.tokensOut,
+      tokensFromArtist: curveLeg.tokensOut,
+      burned: perVault.burn.muln(2),
+      toRewards: perVault.rewards.muln(2),
+   };
 }
 
 // ---- convenience on top of a `Curve` account ------------------------------------------------
@@ -206,8 +211,8 @@ export function spotPriceSol(curve: CurveLike, decimals = 6): number {
 }
 
 /**
- * Market cap in lamports = spot price * live mint supply. Pass the live `mint.supply` so burns are
- * reflected; falls back to `tokensSold` when no supply is given.
+ * Market cap in lamports = spot price * live mint supply. Pass the live `mint.supply` (the fixed 1B minus
+ * everything burned); falls back to `tokensSold` when no supply is given.
  */
 export function marketCap(curve: CurveLike, mintSupply?: BNLike): BN {
    const supply = mintSupply === undefined ? bn(curve.tokensSold) : bn(mintSupply);
@@ -228,7 +233,7 @@ export function quoteRemainingToComplete(curve: CurveLike): BN {
    return quoteBuyExactOut(curve.virtualSolReserves, curve.virtualTokenReserves, remaining, 0).netIn;
 }
 
-/** Tokens the curve can still mint. */
+/** Tokens the curve can still sell. */
 export function remainingSupply(curve: CurveLike): BN {
    const r = bn(curve.supplyCap).sub(bn(curve.tokensSold));
    return r.isNeg() ? new BN(0) : r;
@@ -236,7 +241,7 @@ export function remainingSupply(curve: CurveLike): BN {
 
 // ---- slippage helpers -------------------------------------------------------------------------
 
-/** `amount * (10000 - slippageBps) / 10000`, floored. Use for `min_tokens_out` / `min_lamports_out`. */
+/** `amount * (10000 - slippageBps) / 10000`, floored. Use for `min_tokens_out`. */
 export function minOut(amount: BNLike, slippageBps = 100): BN {
    if (slippageBps < 0 || slippageBps > 10_000) throw new CurveMathError("InvalidBps");
    return bn(amount).mul(BPS.subn(slippageBps)).div(BPS);
@@ -256,16 +261,5 @@ export function applyBuy<T extends CurveLike>(curve: T, q: BuyQuote): T {
       virtualTokenReserves: bn(curve.virtualTokenReserves).sub(q.tokensOut),
       tokensSold: bn(curve.tokensSold).add(q.tokensOut),
       realSolReserves: curve.realSolReserves === undefined ? undefined : bn(curve.realSolReserves).add(q.netIn),
-   };
-}
-
-/** Apply a sell to a copy of the curve state. */
-export function applySell<T extends CurveLike>(curve: T, tokensIn: BNLike, q: SellQuote): T {
-   return {
-      ...curve,
-      virtualSolReserves: bn(curve.virtualSolReserves).sub(q.grossOut),
-      virtualTokenReserves: bn(curve.virtualTokenReserves).add(bn(tokensIn)),
-      tokensSold: bn(curve.tokensSold).sub(bn(tokensIn)),
-      realSolReserves: curve.realSolReserves === undefined ? undefined : bn(curve.realSolReserves).sub(q.grossOut),
    };
 }

@@ -1,7 +1,8 @@
 /**
- * Find the MoOG Pass a wallet holds so `redeem_perk` can be called with the right optional accounts.
- * On-chain `resolve_pass` requires: `pass_perk.kind == Pass`, `pass_asset.owner == buyer` and
- * `pass_asset.update_authority == Collection(pass_perk.collection)`; this helper applies the same filter.
+ * Find the Mostro Pass a wallet holds. Pass benefits (discounts, early access, VIP areas) are applied by the
+ * web app, not by the program: nothing here is passed on-chain. The filter is the one the program used to
+ * enforce: the asset is owned by the wallet and belongs to a pass perk's Core collection
+ * (`update_authority == Collection(perk.collection)`), so a pass that was transferred away does not count.
  */
 import { Connection, PublicKey } from "@solana/web3.js";
 import { publicKey as umiPublicKey, Umi } from "@metaplex-foundation/umi";
@@ -17,18 +18,18 @@ export interface PassPerkRef {
    collection: PublicKey;
    /** 0 Standard, 1 VIP. */
    tier: number;
-   /** `perk.active`. `redeem_perk` rejects a pass whose tier was deactivated (`PerkInactive`). */
+   /** `perk.active`. The web app should treat a pass from a deactivated tier as expired. */
    active: boolean;
 }
 
 export interface FoundPass {
-   /** Core asset address: goes in `redeem_perk.pass_asset`. */
+   /** Core asset address. */
    asset: PublicKey;
-   /** Pass perk PDA: goes in `redeem_perk.pass_perk`. */
+   /** Pass perk PDA the asset was minted from. */
    perk: PublicKey;
    collection: PublicKey;
    tier: number;
-   /** False when the pass tier was deactivated; presenting it fails on-chain, so treat as "no pass". */
+   /** False when the pass tier was deactivated; treat as "no pass". */
    active: boolean;
    name: string;
    uri: string;
@@ -70,7 +71,7 @@ export function isVip(pass: FoundPass | null | undefined): boolean {
    return !!pass && pass.tier === TIER_VIP;
 }
 
-/** Shape expected by `buildRedeemPerk({ pass })`. */
-export function toPassAccounts(pass: FoundPass | null | undefined): { asset: PublicKey; perk: PublicKey } | null {
+/** `{ asset, perk }` of the pass, for the web app's own records. */
+export function toPassRef(pass: FoundPass | null | undefined): { asset: PublicKey; perk: PublicKey } | null {
    return pass ? { asset: pass.asset, perk: pass.perk } : null;
 }

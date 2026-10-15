@@ -24,6 +24,7 @@ import {
    computeBudgetIxs,
    configPda,
    decodePriceUpdateV2,
+   emptySetConfigArgs,
    explorerTx,
    feedIdBytes,
    fmtUnits,
@@ -91,21 +92,11 @@ run(async () => {
 
    const sig = await ctx.program.methods
       .setConfig({
-         paused: null,
-         kycRequired: null,
+         ...emptySetConfigArgs(),
          priceMode: mode,
          solUsdPriceE6: priceE6,
          pythSolUsdAccount: needsPythWiring ? PYTH_SOL_USD_ACCOUNT : null,
          pythFeedId: needsPythWiring ? feedIdBytes(PYTH_SOL_USD_FEED_ID_HEX) : null,
-         maxPriceAgeSecs: null,
-         feeBps: null,
-         standardDiscountBps: null,
-         vipDiscountBps: null,
-         standardEarlySecs: null,
-         vipEarlySecs: null,
-         minBurnBps: null,
-         minRewardsBps: null,
-         adminPriceMaxAgeSecs: null,
       })
       .accountsStrict({
          admin: ctx.wallet.publicKey,
