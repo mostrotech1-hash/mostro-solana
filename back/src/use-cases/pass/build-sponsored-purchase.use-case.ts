@@ -1,5 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import type { BuildPurchaseRequest, BuildPurchaseResponse } from "@mostro/shared/api";
 import { listReceiptsByBuyer } from "@mostro/shared";
@@ -41,7 +41,9 @@ export class BuildSponsoredPurchaseUseCase {
       const { quote, config, curve, perk } = state;
 
       // Cheap checks first, with the program's own wording, so the user sees a clear reason instead of a failed transaction.
-      if (config.paused) throw new ConflictException("Trading is paused right now. Please try again later.");
+      if (config.buysPaused) throw new ConflictException("Buying is paused right now. Please try again later.");
+      if (config.redeemsPaused) throw new ConflictException("Perk redemptions are paused right now. Please try again later.");
+      if (await this.solana.isBlacklisted(buyer)) throw new ForbiddenException("This wallet is not allowed to use Mostro.");
       if (curve.complete) throw new ConflictException("The curve is complete. Trading here is closed.");
       if (!perk.active) throw new ConflictException("The pass is no longer available.");
       if (perk.maxSupply !== 0 && perk.sold >= perk.maxSupply) throw new ConflictException("Sold out. All passes have been claimed.");
@@ -68,7 +70,7 @@ export class BuildSponsoredPurchaseUseCase {
       const sponsorBalance = await this.solana.connection.getBalance(this.solana.sponsor().publicKey, "confirmed");
       if (sponsorBalance < MIN_SPONSOR_LAMPORTS) throw apiError(503, "SPONSOR_UNAVAILABLE", "The fee sponsor is out of funds. Contact the team.");
 
-      const built = await this.builder.build({ buyer, state, maxLamportsIn, kyc: await this.solana.hasKycRecord(buyer) });
+      const built = await this.builder.build({ buyer, state, maxLamportsIn });
 
       return {
          transaction: built.serialized.toString("base64"),

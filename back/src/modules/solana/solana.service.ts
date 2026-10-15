@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, ServiceUnavailableException } from "@nestjs
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import devnetAddresses from "@mostro/shared/addresses/devnet";
-import { artistPda, createReadonlyProgram, fetchConfig, fetchCurve, fetchKyc, maxIn, perkKindName, perkPda, quoteBuyExactOut, type MostroProgram } from "@mostro/shared";
+import { artistPda, createReadonlyProgram, fetchConfig, fetchCurve, isBlacklisted, maxIn, perkKindName, perkPda, quoteBuyExactOut, type MostroProgram } from "@mostro/shared";
 import type { PassQuote } from "@mostro/shared/api";
 import { ENV, type Env } from "../../config/env";
 import { apiError } from "../../common/api-error";
@@ -92,19 +92,19 @@ export class SolanaService {
       if (perk.name !== DEMO_PASS.name || perkKindName(perk.kind) !== "pass" || perk.tier !== 0) {
          throw apiError(409, "PASS_PRICE_CHANGED", "The demo pass is not the expected perk. Contact the team.");
       }
-      if (BigInt(perk.price.toString()) !== DEMO_PASS.priceBaseUnits) {
+      if (BigInt(perk.priceTokens.toString()) !== DEMO_PASS.priceBaseUnits) {
          throw apiError(409, "PASS_PRICE_CHANGED", "The pass price changed. Refresh and review the new price.");
       }
 
       // The SOL price is never hardcoded: it is whatever the curve charges right now for exactly the pass price.
-      const q = quoteBuyExactOut(curve.virtualSolReserves, curve.virtualTokenReserves, perk.price, config.feeBps);
+      const q = quoteBuyExactOut(curve.virtualSolReserves, curve.virtualTokenReserves, perk.priceTokens, config.feeBps);
       const quote: PassQuote = {
          cluster: "devnet",
          pass: {
             name: perk.name,
             artistIndex: DEMO_PASS.artistIndex,
             perkIndex: DEMO_PASS.perkIndex,
-            priceMost: perk.price.toString(),
+            priceMost: perk.priceTokens.toString(),
             active: perk.active,
             sold: perk.sold,
             maxSupply: perk.maxSupply,
@@ -120,8 +120,8 @@ export class SolanaService {
       return { config, curve, perk, perkAddress, artistAddress, quote };
    }
 
-   /** The program only requires the optional KYC record when `config.kyc_required`; like the reference script, pass it when it exists. */
-   async hasKycRecord(buyer: PublicKey): Promise<boolean> {
-      return (await fetchKyc(this.program, buyer)) !== null;
+   /** Blacklisted wallets cannot buy or redeem (there is no on-chain KYC; everyone else is allowed). */
+   async isBlacklisted(wallet: PublicKey): Promise<boolean> {
+      return isBlacklisted(this.program, wallet);
    }
 }

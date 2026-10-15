@@ -11,6 +11,9 @@ erDiagram
         text email "from Openfort, can be empty"
         text name "display name, empty until set"
         text avatar_url "file path: user id / file name"
+        text kyc_status "none, pending, approved or rejected (Sumsub)"
+        text sumsub_applicant_id UK "Sumsub applicant id, can be empty"
+        timestamptz kyc_updated_at
         timestamptz created_at
         timestamptz updated_at
     }
@@ -26,6 +29,9 @@ erDiagram
 | `email`       | Their email, when Openfort has one.                                                      |
 | `name`        | The display name from the profile step. Empty until they choose one.                     |
 | `avatar_url`  | Path of their picture: `<user id>/<file>`. The file sits on the server (`back/storage`). |
+| `kyc_status`  | Result of the Sumsub check: `none` (default), `pending`, `approved` or `rejected`.        |
+| `sumsub_applicant_id` | Sumsub applicant id. Unique. Documents stay at Sumsub.                            |
+| `kyc_updated_at` | Last time the KYC status changed.                                                      |
 | `created_at`  | When they first signed in.                                                               |
 | `updated_at`  | Last change to the row.                                                                  |
 

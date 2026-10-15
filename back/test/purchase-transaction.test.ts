@@ -52,7 +52,7 @@ describe("sponsored pass purchase (live devnet state, nothing is sent)", () => {
    });
 
    it("builds ONE sponsored transaction: compute budget, buy exact $MOST, redeem; sponsor pays", async () => {
-      const built = await builder.build({ buyer: buyer.publicKey, state, maxLamportsIn, kyc: false });
+      const built = await builder.build({ buyer: buyer.publicKey, state, maxLamportsIn });
       const tx = built.transaction;
 
       assert.ok(tx.feePayer?.equals(sponsor.publicKey), "sponsor is the fee payer");
@@ -83,7 +83,7 @@ describe("sponsored pass purchase (live devnet state, nothing is sent)", () => {
    });
 
    it("includes a recent blockhash that is fresh", async () => {
-      const built = await builder.build({ buyer: buyer.publicKey, state, maxLamportsIn, kyc: false });
+      const built = await builder.build({ buyer: buyer.publicKey, state, maxLamportsIn });
       const height = await solana.connection.getBlockHeight("confirmed");
       assert.ok(built.lastValidBlockHeight >= height, "blockhash is still valid");
       assert.ok(built.lastValidBlockHeight - height <= 152, "blockhash was just fetched");
@@ -91,7 +91,7 @@ describe("sponsored pass purchase (live devnet state, nothing is sent)", () => {
 
    describe("refuses anything that is not exactly this purchase", () => {
       const pass = () => ({ sponsor: sponsor.publicKey, buyer: buyer.publicKey, tokensOut: 1_200_000_000n, maxLamportsIn: BigInt(state.quote.maxLamportsIn) });
-      const fresh = async () => (await builder.build({ buyer: buyer.publicKey, state, maxLamportsIn, kyc: false })).transaction;
+      const fresh = async () => (await builder.build({ buyer: buyer.publicKey, state, maxLamportsIn })).transaction;
 
       it("accepts the real transaction", async () => {
          inspectPurchaseTransaction(solana.program, await fresh(), pass());
@@ -125,7 +125,7 @@ describe("sponsored pass purchase (live devnet state, nothing is sent)", () => {
             artistIndex: 0,
             perkIndex: 0,
             curveIndex: 0,
-            maxPaid: state.perk.price,
+            maxPaid: state.perk.priceTokens,
             collection: state.perk.collection,
          });
          const tx = new Transaction({ feePayer: sponsor.publicKey, blockhash: "11111111111111111111111111111111", lastValidBlockHeight: 1 });

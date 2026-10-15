@@ -78,20 +78,20 @@ export function inspectPurchaseTransaction(
 export class PurchaseTransactionBuilder {
    constructor(@Inject(SolanaService) private readonly solana: SolanaService) {}
 
-   async build(input: { buyer: PublicKey; state: PassState; maxLamportsIn: BN; kyc: boolean }): Promise<BuiltPurchase> {
-      const { buyer, state, maxLamportsIn, kyc } = input;
+   async build(input: { buyer: PublicKey; state: PassState; maxLamportsIn: BN }): Promise<BuiltPurchase> {
+      const { buyer, state, maxLamportsIn } = input;
       const { program } = this.solana;
       const sponsor = this.solana.sponsor();
 
       // Same SDK builders as the reference scripts. The sponsor is `payer` of both instructions; the buyer pays only the trade.
-      const buy = await buildBuyTokensExactOutSol(program, { buyer, payer: sponsor.publicKey, curveIndex: DEMO_PASS.curveIndex, tokensOut: state.perk.price, maxLamportsIn, kyc });
+      const buy = await buildBuyTokensExactOutSol(program, { buyer, payer: sponsor.publicKey, curveIndex: DEMO_PASS.curveIndex, tokensOut: state.perk.priceTokens, maxLamportsIn });
       const redeem = await buildRedeemPerk(program, {
          buyer,
          payer: sponsor.publicKey,
          artistIndex: DEMO_PASS.artistIndex,
          perkIndex: DEMO_PASS.perkIndex,
          curveIndex: DEMO_PASS.curveIndex,
-         maxPaid: state.perk.price,
+         maxPaid: state.perk.priceTokens,
          collection: state.perk.collection,
       });
 
@@ -108,7 +108,7 @@ export class PurchaseTransactionBuilder {
       inspectPurchaseTransaction(program, transaction, {
          sponsor: sponsor.publicKey,
          buyer,
-         tokensOut: BigInt(state.perk.price.toString()),
+         tokensOut: BigInt(state.perk.priceTokens.toString()),
          maxLamportsIn: BigInt(maxLamportsIn.toString()),
       });
 
