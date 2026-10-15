@@ -16,6 +16,24 @@ export interface UserProfile {
    name: string | null;
    /** Absolute URL of the avatar image, or `null`. */
    avatarUrl: string | null;
+   /** Result of the Sumsub identity check. Set only by the server. */
+   kycStatus: KycStatus;
+}
+
+/** Mirrors the CHECK constraint on `mostro_app.users.kyc_status`. */
+export const KYC_STATUSES = ["none", "pending", "approved", "rejected"] as const;
+export type KycStatus = (typeof KYC_STATUSES)[number];
+
+/** POST /kyc/access-token (no body): a short-lived token for the Sumsub web widget, for the signed-in user only. */
+export interface KycAccessTokenResponse {
+   token: string;
+   /** Seconds the token is valid. The widget asks for a fresh one when it runs out. */
+   expiresInSecs: number;
+}
+
+/** GET /kyc/status */
+export interface KycStatusResponse {
+   status: KycStatus;
 }
 
 /** POST /users/sync (no body): creates the user on first login, returns it on the next ones. */
@@ -134,7 +152,7 @@ export interface DevnetTopupResponse {
 }
 
 /** Machine-readable `code` carried by some API errors, next to `message`. */
-export type ApiErrorCode = "QUOTE_CHANGED" | "PASS_PRICE_CHANGED" | "INSUFFICIENT_SOL" | "SPONSOR_UNAVAILABLE" | "WALLET_NOT_OWNED" | "RATE_LIMITED";
+export type ApiErrorCode = "QUOTE_CHANGED" | "PASS_PRICE_CHANGED" | "INSUFFICIENT_SOL" | "SPONSOR_UNAVAILABLE" | "WALLET_NOT_OWNED" | "RATE_LIMITED" | "KYC_UNAVAILABLE";
 
 /** Every error body the API returns. */
 export interface ApiError {

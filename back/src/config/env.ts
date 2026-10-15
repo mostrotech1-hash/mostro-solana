@@ -32,6 +32,14 @@ const schema = z.object({
    DEVNET_TOPUP_LAMPORTS: z.coerce.number().int().min(1).max(1_000_000_000).default(150_000_000),
    /** When "true", a wallet that already owns the demo pass cannot buy a second one. Off by default so the demo can be repeated. */
    ENFORCE_ONE_PASS_PER_WALLET: z.enum(["true", "false"]).default("false"),
+   /** Sumsub KYC (sandbox `sbx:` tokens while building). All optional: without them the /kyc routes answer 503 and nothing else is affected. */
+   SUMSUB_APP_TOKEN: z.string().optional(),
+   SUMSUB_SECRET_KEY: z.string().optional(),
+   SUMSUB_API_BASE_URL: z.string().default("https://api.sumsub.com"),
+   SUMSUB_LEVEL_NAME: z.string().optional(),
+   SUMSUB_TOKEN_TTL_SECS: z.coerce.number().int().min(60).max(3600).default(600),
+   /** Signing secret of the webhook (not the app secret). Without it the webhook route refuses every call. */
+   SUMSUB_WEBHOOK_SECRET: z.string().optional(),
    AVATARS_DIR: z.string().default(join(process.cwd(), "storage", "avatars")),
 });
 

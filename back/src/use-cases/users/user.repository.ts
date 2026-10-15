@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { LoginType } from "@mostro/shared/api";
+import type { KycStatus, LoginType } from "@mostro/shared/api";
 import type { Pool } from "pg";
 import { PG_POOL } from "../../modules/database/database.module";
 
@@ -11,9 +11,10 @@ export interface UserRecord {
    email: string | null;
    name: string | null;
    avatarPath: string | null;
+   kycStatus: KycStatus;
 }
 
-const COLUMNS = `id, openfort_id AS "openfortId", login_type AS "loginType", email, name, avatar_url AS "avatarPath"`;
+const COLUMNS = `id, openfort_id AS "openfortId", login_type AS "loginType", email, name, avatar_url AS "avatarPath", kyc_status AS "kycStatus"`;
 
 @Injectable()
 export class UserRepository {
@@ -34,6 +35,23 @@ export class UserRepository {
    async findByOpenfortId(openfortId: string): Promise<UserRecord | null> {
       const { rows } = await this.pool.query<UserRecord>(`SELECT ${COLUMNS} FROM mostro_app.users WHERE openfort_id = $1`, [openfortId]);
       return rows[0] ?? null;
+   }
+
+   async findById(id: string): Promise<UserRecord | null> {
+      const { rows } = await this.pool.query<UserRecord>(`SELECT ${COLUMNS} FROM mostro_app.users WHERE id = $1`, [id]);
+      return rows[0] ?? null;
+   }
+
+   /** Stores what Sumsub said. Safe to repeat: the same event twice leaves the same row. Returns false when no such user. */
+   async setKyc(id: string, status: KycStatus, applicantId: string | null): Promise<boolean> {
+      const { rowCount } = await this.pool.query(
+         `UPDATE mostro_app.users
+             SET kyc_status = $2, sumsub_applicant_id = COALESCE($3, sumsub_applicant_id),
+                 kyc_updated_at = CASE WHEN kyc_status IS DISTINCT FROM $2 THEN now() ELSE kyc_updated_at END, updated_at = now()
+           WHERE id = $1`,
+         [id, status, applicantId],
+      );
+      return (rowCount ?? 0) > 0;
    }
 
    async updateName(id: string, name: string): Promise<UserRecord> {
