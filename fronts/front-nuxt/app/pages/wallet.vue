@@ -5,6 +5,9 @@ const config = useRuntimeConfig();
 
 const explorerUrl = computed(() => `https://explorer.solana.com/address/${session.walletAddress}?cluster=${config.public.solanaCluster}`);
 const copied = ref(false);
+const kycText = computed(
+   () => ({ none: "Not verified", pending: "In review", approved: "Verified", rejected: "Not verified, you can try again" })[session.kycStatus],
+);
 
 async function copyAddress() {
    if (!session.walletAddress) return;
@@ -22,6 +25,10 @@ async function copyAddress() {
          <UiCard variant="panel">
             <p class="wallet__label">ADDRESS</p>
             <p class="wallet__address">{{ session.walletAddress }}</p>
+         </UiCard>
+         <UiCard variant="panel">
+            <UiRow label="Identity check" :value="kycText" />
+            <UiButton v-if="session.kycStatus !== 'approved'" to="/verify" variant="secondary" block>{{ session.kycStatus === "pending" ? "See progress" : "Verify your identity" }}</UiButton>
          </UiCard>
          <UiButton variant="primary" block @click="copyAddress">{{ copied ? "Copied" : "Copy address" }}</UiButton>
          <UiButton :href="explorerUrl" variant="secondary" block>View on Solana Explorer</UiButton>

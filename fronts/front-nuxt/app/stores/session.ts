@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { AccountTypeEnum, ChainTypeEnum, EmbeddedState, OAuthProvider, RecoveryMethod, type Openfort } from "@openfort/openfort-js";
-import type { EncryptionSessionResponse, UserProfile } from "@mostro/shared/api";
+import type { EncryptionSessionResponse, KycAccessTokenResponse, KycStatus, KycStatusResponse, UserProfile } from "@mostro/shared/api";
 
 export type SocialProvider = "google" | "apple" | "twitter";
 
@@ -128,6 +128,20 @@ export const useSessionStore = defineStore("session", () => {
       profile.value = await api<UserProfile>("/users/me/avatar", { method: "POST", body });
    }
 
+   /** Identity check state, from the server (never from the widget). */
+   const kycStatus = computed<KycStatus>(() => profile.value?.kycStatus ?? "none");
+
+   async function kycToken(): Promise<string> {
+      return (await api<KycAccessTokenResponse>("/kyc/access-token", { method: "POST" })).token;
+   }
+
+   /** Reads the status the server holds (it also asks Sumsub while the check is not final) and keeps the profile in step. */
+   async function refreshKyc(): Promise<KycStatus> {
+      const { status } = await api<KycStatusResponse>("/kyc/status");
+      if (profile.value && profile.value.kycStatus !== status) profile.value = { ...profile.value, kycStatus: status };
+      return status;
+   }
+
    async function logout(): Promise<void> {
       await client().auth.logout();
       profile.value = null;
@@ -154,6 +168,9 @@ export const useSessionStore = defineStore("session", () => {
       finishSocialLogin,
       saveName,
       uploadAvatar,
+      kycStatus,
+      kycToken,
+      refreshKyc,
       api,
       purchaseContext,
       logout,

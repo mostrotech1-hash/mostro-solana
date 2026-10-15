@@ -6,7 +6,7 @@ import { ENV, type Env } from "./config/env";
 
 /** Builds the Nest app with CORS set. Shared by the local server (main.ts) and the Vercel function (vercel.ts). */
 export async function createApp(): Promise<{ app: NestExpressApplication; env: Env }> {
-   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
    const env = app.get<Env>(ENV);
    app.set(
       "trust proxy",
