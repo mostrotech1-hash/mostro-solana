@@ -1,13 +1,27 @@
+//! Perks: what fans get for their tokens or their SOL.
+//!
+//! A perk is an on-chain product record plus a Metaplex Core collection. Every redemption mints a
+//! Core asset (the "NFT") into that collection with the attributes the web app needs (`kind`,
+//! `tier`, `artist`, `edition`) and writes a `Receipt`. The program never interprets what the perk
+//! is; pass benefits (discounts, early access, VIP rooms) are applied by the web app from the
+//! asset the fan holds.
+//!
+//! Two payment modes, one economic rule (80 % of the tokens involved burned, 20 % to rewards):
+//! - `redeem_perk`: the fan pays `perk.price_tokens` from its wallet.
+//! - `buy_perk_sol`: hybrid perk, the fan pays `perk.price_lamports`. Half of the SOL buys tokens
+//!   on the curve, the other half goes to the artist wallet; the same number of tokens is taken
+//!   from the artist reserve, and all of those tokens are burned / sent to rewards.
+
 use anchor_lang::prelude::*;
+use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::token_interface::{
     burn, transfer_checked, Burn, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 use mpl_core::{
-    accounts::{BaseAssetV1, BaseCollectionV1},
+    accounts::BaseCollectionV1,
     instructions::{CreateCollectionV2CpiBuilder, CreateV2CpiBuilder},
     types::{
-        Attribute, Attributes, Edition, MasterEdition, Plugin, PluginAuthority,
-        PluginAuthorityPair, UpdateAuthority,
+        Attribute, Attributes, Edition, MasterEdition, Plugin, PluginAuthority, PluginAuthorityPair,
     },
     ID as MPL_CORE_ID,
 };
@@ -15,19 +29,20 @@ use mpl_core::{
 use crate::curve;
 use crate::errors::MostroError;
 use crate::events::*;
+use crate::instructions::config::require_not_blacklisted;
+use crate::instructions::trading::{apply_buy, check_can_buy, record_spend};
 use crate::state::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CreatePerkArgs {
     pub kind: PerkKind,
     pub tier: u8,
-    pub price: u64,
-    pub burn_bps: u16,
-    pub rewards_bps: u16,
+    /// Token price (base units). Set exactly one of `price_tokens` / `price_lamports`.
+    pub price_tokens: u64,
+    /// SOL price (lamports) for a hybrid perk.
+    pub price_lamports: u64,
     pub max_supply: u32,
     pub public_start_ts: i64,
-    pub vip_only: bool,
-    pub discount_eligible: bool,
     pub name: String,
     pub uri: String,
     /// Client-chosen salt for the collection address, so a squatted (pre-funded) PDA can be skipped.
@@ -51,8 +66,11 @@ pub struct CreatePerk<'info> {
         constraint = artist.active @ MostroError::ArtistInactive,
     )]
     pub artist: Box<Account<'info, Artist>>,
-    /// The curve mint the perk is priced in.
-    #[account(constraint = curve.mint == mint.key() @ MostroError::InvalidMint)]
+    /// The artist's curve; the perk is tied to its mint.
+    #[account(
+        constraint = curve.key() == artist.curve @ MostroError::InvalidMint,
+        constraint = curve.mint == mint.key() @ MostroError::InvalidMint,
+    )]
     pub curve: Box<Account<'info, Curve>>,
     pub mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
@@ -66,35 +84,22 @@ pub struct CreatePerk<'info> {
     /// CHECK: Core collection account, created by CPI. PDA so no extra signer is needed.
     #[account(mut, seeds = [COLLECTION_SEED, perk.key().as_ref(), &args.collection_salt.to_le_bytes()], bump)]
     pub collection: UncheckedAccount<'info>,
-    /// Artist vault for this mint, created lazily here so `redeem_perk` never has to.
-    #[account(
-        init_if_needed,
-        payer = signer,
-        seeds = [ARTIST_VAULT_SEED, artist.key().as_ref(), mint.key().as_ref()],
-        bump,
-        token::mint = mint,
-        token::authority = artist,
-        token::token_program = token_program,
-    )]
-    pub artist_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: address constrained to the Metaplex Core program.
     #[account(address = MPL_CORE_ID)]
     pub mpl_core_program: UncheckedAccount<'info>,
-    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
 pub fn create_perk(ctx: Context<CreatePerk>, args: CreatePerkArgs) -> Result<()> {
     require!(args.name.len() <= MAX_NAME, MostroError::StringTooLong);
     require!(args.uri.len() <= MAX_URI, MostroError::StringTooLong);
-    require!(args.price > 0, MostroError::InvalidAmount);
     require!(
-        args.burn_bps as u64 + args.rewards_bps as u64 <= BPS_DENOMINATOR,
-        MostroError::InvalidBps
+        (args.price_tokens > 0) != (args.price_lamports > 0),
+        MostroError::InvalidPerkPrice
     );
     match args.kind {
         PerkKind::Pass => {
-            // Pass perks grant protocol-wide benefits: only the protocol admin can create them.
+            // The Mostro Pass is a platform product: only the protocol admin issues it.
             require_keys_eq!(
                 ctx.accounts.signer.key(),
                 ctx.accounts.config.admin,
@@ -104,18 +109,13 @@ pub fn create_perk(ctx: Context<CreatePerk>, args: CreatePerkArgs) -> Result<()>
         }
         _ => require!(args.tier == 0, MostroError::InvalidTier),
     }
-    require!(
-        args.burn_bps >= ctx.accounts.config.min_burn_bps
-            && args.rewards_bps >= ctx.accounts.config.min_rewards_bps,
-        MostroError::InvalidBps
-    );
 
     create_collection(&ctx, &args)?;
 
     let artist = &mut ctx.accounts.artist;
     let p = &mut ctx.accounts.perk;
     p.bump = ctx.bumps.perk;
-    p.version = 1;
+    p.version = 2;
     p.index = artist.perk_count;
     p.artist = artist.key();
     p.mint = ctx.accounts.mint.key();
@@ -123,14 +123,11 @@ pub fn create_perk(ctx: Context<CreatePerk>, args: CreatePerkArgs) -> Result<()>
     p.collection_bump = ctx.bumps.collection;
     p.kind = args.kind;
     p.tier = args.tier;
-    p.price = args.price;
-    p.burn_bps = args.burn_bps;
-    p.rewards_bps = args.rewards_bps;
+    p.price_tokens = args.price_tokens;
+    p.price_lamports = args.price_lamports;
     p.max_supply = args.max_supply;
     p.sold = 0;
     p.public_start_ts = args.public_start_ts;
-    p.vip_only = args.vip_only;
-    p.discount_eligible = args.discount_eligible;
     p.active = true;
     p.name = args.name;
     p.uri = args.uri;
@@ -141,7 +138,8 @@ pub fn create_perk(ctx: Context<CreatePerk>, args: CreatePerkArgs) -> Result<()>
         collection: p.collection,
         kind: p.kind,
         tier: p.tier,
-        price: p.price,
+        price_tokens: p.price_tokens,
+        price_lamports: p.price_lamports,
         max_supply: p.max_supply,
     });
     Ok(())
@@ -149,14 +147,11 @@ pub fn create_perk(ctx: Context<CreatePerk>, args: CreatePerkArgs) -> Result<()>
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
 pub struct SetPerkArgs {
-    pub price: Option<u64>,
+    pub price_tokens: Option<u64>,
+    pub price_lamports: Option<u64>,
     pub active: Option<bool>,
     pub max_supply: Option<u32>,
     pub public_start_ts: Option<i64>,
-    pub vip_only: Option<bool>,
-    pub discount_eligible: Option<bool>,
-    pub burn_bps: Option<u16>,
-    pub rewards_bps: Option<u16>,
     pub uri: Option<String>,
 }
 
@@ -177,7 +172,6 @@ pub struct ManagePerk<'info> {
 
 pub fn set_perk(ctx: Context<ManagePerk>, args: SetPerkArgs) -> Result<()> {
     if ctx.accounts.perk.kind == PerkKind::Pass {
-        // Pass perks carry protocol-wide benefits: only the admin may edit them.
         require_keys_eq!(
             ctx.accounts.signer.key(),
             ctx.accounts.config.admin,
@@ -185,10 +179,14 @@ pub fn set_perk(ctx: Context<ManagePerk>, args: SetPerkArgs) -> Result<()> {
         );
     }
     let p = &mut ctx.accounts.perk;
-    if let Some(v) = args.price {
-        require!(v > 0, MostroError::InvalidAmount);
-        p.price = v;
-    }
+    let price_tokens = args.price_tokens.unwrap_or(p.price_tokens);
+    let price_lamports = args.price_lamports.unwrap_or(p.price_lamports);
+    require!(
+        (price_tokens > 0) != (price_lamports > 0),
+        MostroError::InvalidPerkPrice
+    );
+    p.price_tokens = price_tokens;
+    p.price_lamports = price_lamports;
     if let Some(v) = args.active {
         p.active = v;
     }
@@ -199,22 +197,6 @@ pub fn set_perk(ctx: Context<ManagePerk>, args: SetPerkArgs) -> Result<()> {
     if let Some(v) = args.public_start_ts {
         p.public_start_ts = v;
     }
-    if let Some(v) = args.vip_only {
-        p.vip_only = v;
-    }
-    if let Some(v) = args.discount_eligible {
-        p.discount_eligible = v;
-    }
-    let burn_bps = args.burn_bps.unwrap_or(p.burn_bps);
-    let rewards_bps = args.rewards_bps.unwrap_or(p.rewards_bps);
-    require!(
-        burn_bps as u64 + rewards_bps as u64 <= BPS_DENOMINATOR
-            && burn_bps >= ctx.accounts.config.min_burn_bps
-            && rewards_bps >= ctx.accounts.config.min_rewards_bps,
-        MostroError::InvalidBps
-    );
-    p.burn_bps = burn_bps;
-    p.rewards_bps = rewards_bps;
     if let Some(v) = args.uri {
         require!(v.len() <= MAX_URI, MostroError::StringTooLong);
         p.uri = v;
@@ -222,22 +204,34 @@ pub fn set_perk(ctx: Context<ManagePerk>, args: SetPerkArgs) -> Result<()> {
     emit!(PerkUpdated {
         perk: p.key(),
         artist: p.artist,
-        price: p.price,
+        price_tokens: p.price_tokens,
+        price_lamports: p.price_lamports,
         active: p.active,
         max_supply: p.max_supply,
         public_start_ts: p.public_start_ts,
-        vip_only: p.vip_only,
-        discount_eligible: p.discount_eligible,
-        burn_bps: p.burn_bps,
-        rewards_bps: p.rewards_bps,
     });
     Ok(())
 }
 
-/// Pay `perk.price` in tokens (minus any pass discount), burn/route the split, mint a Core asset
-/// into the perk's collection for the buyer and write a receipt. One signer: the buyer.
+/// Checks shared by both payment modes.
+fn check_can_redeem(config: &Config, perk: &Perk, artist: &Artist, now: i64) -> Result<()> {
+    require!(!config.redeems_paused, MostroError::RedeemsPaused);
+    require!(perk.active, MostroError::PerkInactive);
+    require!(artist.active, MostroError::ArtistInactive);
+    require!(
+        perk.max_supply == 0 || perk.sold < perk.max_supply,
+        MostroError::PerkSoldOut
+    );
+    require!(now >= perk.public_start_ts, MostroError::SaleNotStarted);
+    Ok(())
+}
+
+// ---- redeem with tokens ---------------------------------------------------------------------------
+
+/// Pay `perk.price_tokens` from the buyer's wallet: 80 % burned, 20 % to the rewards vault. Mints a
+/// Core asset into the perk's collection for the buyer and writes a receipt.
 #[derive(Accounts)]
-#[instruction(nonce: u64, max_paid: u64)]
+#[instruction(nonce: u64)]
 pub struct RedeemPerk<'info> {
     /// Pays rent and the Core protocol fee. Usually the buyer; can be a sponsor (Openfort/Kora).
     #[account(mut)]
@@ -246,7 +240,7 @@ pub struct RedeemPerk<'info> {
     pub buyer: Signer<'info>,
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
     pub config: Box<Account<'info, Config>>,
-    #[account(mut, seeds = [ARTIST_SEED, &artist.index.to_le_bytes()], bump = artist.bump)]
+    #[account(seeds = [ARTIST_SEED, &artist.index.to_le_bytes()], bump = artist.bump)]
     pub artist: Box<Account<'info, Artist>>,
     #[account(
         mut,
@@ -265,14 +259,6 @@ pub struct RedeemPerk<'info> {
     pub buyer_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(mut, seeds = [REWARDS_SEED, curve.key().as_ref()], bump, token::mint = mint, token::authority = curve)]
     pub rewards_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-    #[account(
-        mut,
-        seeds = [ARTIST_VAULT_SEED, artist.key().as_ref(), mint.key().as_ref()],
-        bump,
-        token::mint = mint,
-        token::authority = artist,
-    )]
-    pub artist_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(mut)]
     pub collection: Box<Account<'info, BaseCollectionV1>>,
     /// CHECK: Core asset, created by CPI. Seeded by a client nonce so concurrent buyers never collide.
@@ -286,10 +272,9 @@ pub struct RedeemPerk<'info> {
         bump,
     )]
     pub receipt: Box<Account<'info, Receipt>>,
-    /// Optional MoOG Pass held by the buyer, for discount / early access / VIP gating.
-    pub pass_asset: Option<Box<Account<'info, BaseAssetV1>>>,
-    /// The pass perk the `pass_asset` belongs to.
-    pub pass_perk: Option<Box<Account<'info, Perk>>>,
+    /// CHECK: `["blacklist", buyer]`; may be empty (never blacklisted). Checked by seeds.
+    #[account(seeds = [BLACKLIST_SEED, buyer.key().as_ref()], bump)]
+    pub blacklist_entry: UncheckedAccount<'info>,
     /// CHECK: address constrained to the Metaplex Core program.
     #[account(address = MPL_CORE_ID)]
     pub mpl_core_program: UncheckedAccount<'info>,
@@ -297,111 +282,92 @@ pub struct RedeemPerk<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Returns `(tier, pass_asset_key)` if the buyer presented a valid pass.
-fn resolve_pass(
-    buyer: &Pubkey,
-    pass_asset: &Option<Box<Account<BaseAssetV1>>>,
-    pass_perk: &Option<Box<Account<Perk>>>,
-) -> Result<Option<(u8, Pubkey)>> {
-    match (pass_asset, pass_perk) {
-        (Some(asset), Some(perk)) => {
-            require!(perk.kind == PerkKind::Pass, MostroError::PassMismatch);
-            require!(perk.active, MostroError::PerkInactive);
-            require_keys_eq!(asset.owner, *buyer, MostroError::InvalidPass);
-            match asset.update_authority {
-                UpdateAuthority::Collection(c) => {
-                    require_keys_eq!(c, perk.collection, MostroError::PassMismatch)
-                }
-                _ => return err!(MostroError::InvalidPass),
-            }
-            Ok(Some((perk.tier, asset.key())))
-        }
-        (None, None) => Ok(None),
-        _ => err!(MostroError::PassMismatch),
-    }
-}
-
 pub fn redeem_perk(ctx: Context<RedeemPerk>, nonce: u64, max_paid: u64) -> Result<()> {
-    let config = &ctx.accounts.config;
-    let perk = &ctx.accounts.perk;
-    require!(!config.paused, MostroError::Paused);
-    require!(perk.active, MostroError::PerkInactive);
-    require!(ctx.accounts.artist.active, MostroError::ArtistInactive);
-    require!(
-        perk.max_supply == 0 || perk.sold < perk.max_supply,
-        MostroError::PerkSoldOut
-    );
     let now = Clock::get()?.unix_timestamp;
-
-    let pass = resolve_pass(
-        &ctx.accounts.buyer.key(),
-        &ctx.accounts.pass_asset,
-        &ctx.accounts.pass_perk,
-    )?;
-    let (discount_bps, early_secs, is_vip, pass_used) = match pass {
-        Some((TIER_VIP, key)) => (
-            config.vip_discount_bps,
-            config.vip_early_secs as i64,
-            true,
-            key,
-        ),
-        Some((_, key)) => (
-            config.standard_discount_bps,
-            config.standard_early_secs as i64,
-            false,
-            key,
-        ),
-        None => (0u16, 0i64, false, Pubkey::default()),
-    };
-    if perk.vip_only {
-        require!(is_vip, MostroError::VipOnly);
-    }
-    require!(
-        now >= perk.public_start_ts.saturating_sub(early_secs),
-        MostroError::SaleNotStarted
-    );
-    let effective_discount = if perk.discount_eligible {
-        discount_bps
-    } else {
-        0
-    };
-    let paid = curve::apply_discount(perk.price, effective_discount)?;
+    let perk = &ctx.accounts.perk;
+    check_can_redeem(&ctx.accounts.config, perk, &ctx.accounts.artist, now)?;
+    require_not_blacklisted(&ctx.accounts.blacklist_entry, ctx.program_id)?;
+    require!(perk.price_tokens > 0, MostroError::WrongPerkPayment);
+    let paid = perk.price_tokens;
     // Guards against an artist/admin front-running the buyer with set_perk(price).
     require!(paid <= max_paid, MostroError::SlippageExceeded);
-    let (burned, to_rewards, to_artist) =
-        curve::split_redeem(paid, perk.burn_bps, perk.rewards_bps)?;
+    let (burned, to_rewards) = curve::split_redeem(paid)?;
 
-    // 1. Pay: burn + route (separate frame).
-    pay_split(&ctx, burned, to_rewards, to_artist)?;
+    // 1. Pay: burn + route from the buyer's wallet.
+    if burned > 0 {
+        burn(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Burn {
+                    mint: ctx.accounts.mint.to_account_info(),
+                    from: ctx.accounts.buyer_ata.to_account_info(),
+                    authority: ctx.accounts.buyer.to_account_info(),
+                },
+            ),
+            burned,
+        )?;
+    }
+    if to_rewards > 0 {
+        transfer_checked(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.buyer_ata.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
+                    to: ctx.accounts.rewards_vault.to_account_info(),
+                    authority: ctx.accounts.buyer.to_account_info(),
+                },
+            ),
+            to_rewards,
+            ctx.accounts.mint.decimals,
+        )?;
+    }
 
-    // 2. Mint the Core asset into the perk's collection (separate frame: the CPI builder is large).
+    // 2. Mint the Core asset.
     let edition = perk.sold + 1;
-    let perk_key = perk.key();
-    mint_core_asset(&ctx, nonce, edition)?;
+    mint_core_asset(
+        &MintAsset {
+            mpl_core_program: ctx.accounts.mpl_core_program.to_account_info(),
+            asset: ctx.accounts.asset.to_account_info(),
+            collection: ctx.accounts.collection.to_account_info(),
+            artist: &ctx.accounts.artist,
+            payer: ctx.accounts.payer.to_account_info(),
+            owner: ctx.accounts.buyer.to_account_info(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+            perk,
+            perk_key: ctx.accounts.perk.key(),
+            nonce,
+            asset_bump: ctx.bumps.asset,
+        },
+        edition,
+    )?;
 
     // 3. Receipt + counters.
+    let receipt_bump = ctx.bumps.receipt;
     let r = &mut ctx.accounts.receipt;
-    r.bump = ctx.bumps.receipt;
-    r.version = 1;
-    r.buyer = ctx.accounts.buyer.key();
-    r.perk = perk_key;
-    r.artist = ctx.accounts.artist.key();
-    r.asset = ctx.accounts.asset.key();
-    r.edition = edition;
-    r.kind = perk.kind;
-    r.tier = perk.tier;
-    r.paid = paid;
-    r.burned = burned;
-    r.to_rewards = to_rewards;
-    r.to_artist = to_artist;
-    r.discount_bps = effective_discount;
-    r.pass_used = pass_used;
-    r.ts = now;
-    r.fulfilled = false;
-    r.fulfilled_ts = 0;
-
-    let perk = &mut ctx.accounts.perk;
-    perk.sold = edition;
+    write_receipt(
+        r,
+        receipt_bump,
+        ReceiptData {
+            buyer: ctx.accounts.buyer.key(),
+            perk: ctx.accounts.perk.key(),
+            artist: ctx.accounts.artist.key(),
+            asset: ctx.accounts.asset.key(),
+            edition,
+            kind: ctx.accounts.perk.kind,
+            tier: ctx.accounts.perk.tier,
+            paid_tokens: paid,
+            paid_lamports: 0,
+            tokens_from_curve: 0,
+            tokens_from_artist: 0,
+            burned,
+            to_rewards,
+            lamports_to_curve: 0,
+            lamports_to_artist: 0,
+            ts: now,
+        },
+    );
+    ctx.accounts.perk.sold = edition;
     let curve = &mut ctx.accounts.curve;
     curve.total_burned = curve
         .total_burned
@@ -411,30 +377,356 @@ pub fn redeem_perk(ctx: Context<RedeemPerk>, nonce: u64, max_paid: u64) -> Resul
         .rewards_accrued
         .checked_add(to_rewards)
         .ok_or(MostroError::MathOverflow)?;
-    let artist = &mut ctx.accounts.artist;
-    artist.revenue_tokens = artist
-        .revenue_tokens
-        .checked_add(to_artist)
-        .ok_or(MostroError::MathOverflow)?;
 
     emit!(PerkRedeemed {
-        perk: perk_key,
+        perk: ctx.accounts.perk.key(),
+        artist: ctx.accounts.artist.key(),
+        buyer: ctx.accounts.buyer.key(),
+        asset: ctx.accounts.asset.key(),
+        receipt: ctx.accounts.receipt.key(),
+        edition,
+        kind: ctx.accounts.perk.kind,
+        tier: ctx.accounts.perk.tier,
+        paid_tokens: paid,
+        paid_lamports: 0,
+        tokens_from_curve: 0,
+        tokens_from_artist: 0,
+        burned,
+        to_rewards,
+        lamports_to_curve: 0,
+        lamports_to_artist: 0,
+    });
+    Ok(())
+}
+
+// ---- hybrid perk: pay in SOL --------------------------------------------------------------------
+
+/// Pay `perk.price_lamports`. Half of it is a curve buy (fee to treasury, net to `sol_vault`,
+/// tokens out of `curve_vault`); the other half goes to the artist wallet and the same number of
+/// tokens leaves `artist_reserve`. All tokens involved are burned 80 % / sent to rewards 20 %.
+#[derive(Accounts)]
+#[instruction(nonce: u64)]
+pub struct BuyPerkSol<'info> {
+    /// Pays rent and the Core protocol fee. Usually the buyer; can be a sponsor.
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// Pays the SOL and receives the asset.
+    #[account(mut)]
+    pub buyer: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Box<Account<'info, Config>>,
+    #[account(mut, seeds = [ARTIST_SEED, &artist.index.to_le_bytes()], bump = artist.bump)]
+    pub artist: Box<Account<'info, Artist>>,
+    /// CHECK: the artist's payout wallet, `artist.authority`.
+    #[account(mut, address = artist.authority @ MostroError::Unauthorized)]
+    pub artist_authority: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [PERK_SEED, artist.key().as_ref(), &perk.index.to_le_bytes()],
+        bump = perk.bump,
+        has_one = artist,
+        has_one = mint @ MostroError::InvalidMint,
+        has_one = collection @ MostroError::InvalidCollection,
+    )]
+    pub perk: Box<Account<'info, Perk>>,
+    #[account(
+        mut,
+        seeds = [CURVE_SEED, &curve.index.to_le_bytes()],
+        bump = curve.bump,
+        has_one = mint @ MostroError::InvalidMint,
+        constraint = curve.key() == artist.curve @ MostroError::InvalidMint,
+    )]
+    pub curve: Box<Account<'info, Curve>>,
+    #[account(mut)]
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
+    #[account(mut, seeds = [CURVE_VAULT_SEED, curve.key().as_ref()], bump, token::mint = mint, token::authority = curve)]
+    pub curve_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(mut, seeds = [ARTIST_RESERVE_SEED, curve.key().as_ref()], bump, token::mint = mint, token::authority = curve)]
+    pub artist_reserve: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(mut, seeds = [REWARDS_SEED, curve.key().as_ref()], bump, token::mint = mint, token::authority = curve)]
+    pub rewards_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(mut, seeds = [SOL_VAULT_SEED, curve.key().as_ref()], bump = curve.sol_vault_bump)]
+    pub sol_vault: SystemAccount<'info>,
+    #[account(mut, seeds = [TREASURY_SEED], bump = config.treasury_bump)]
+    pub treasury: SystemAccount<'info>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + SpendTracker::INIT_SPACE,
+        seeds = [SPEND_SEED, curve.key().as_ref(), buyer.key().as_ref()],
+        bump,
+    )]
+    pub spend: Box<Account<'info, SpendTracker>>,
+    /// CHECK: `["blacklist", buyer]`; may be empty (never blacklisted). Checked by seeds.
+    #[account(seeds = [BLACKLIST_SEED, buyer.key().as_ref()], bump)]
+    pub blacklist_entry: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub collection: Box<Account<'info, BaseCollectionV1>>,
+    /// CHECK: Core asset, created by CPI. Seeded by a client nonce so concurrent buyers never collide.
+    #[account(mut, seeds = [ASSET_SEED, perk.key().as_ref(), &nonce.to_le_bytes()], bump)]
+    pub asset: UncheckedAccount<'info>,
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + Receipt::INIT_SPACE,
+        seeds = [RECEIPT_SEED, asset.key().as_ref()],
+        bump,
+    )]
+    pub receipt: Box<Account<'info, Receipt>>,
+    /// CHECK: address constrained to the Metaplex Core program.
+    #[account(address = MPL_CORE_ID)]
+    pub mpl_core_program: UncheckedAccount<'info>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn buy_perk_sol(ctx: Context<BuyPerkSol>, nonce: u64, max_lamports: u64) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    check_can_redeem(
+        &ctx.accounts.config,
+        &ctx.accounts.perk,
+        &ctx.accounts.artist,
+        now,
+    )?;
+    // The curve leg is a buy: same gates as any other buy (pause, cool-down, completion, blacklist).
+    check_can_buy(
+        &ctx.accounts.config,
+        &ctx.accounts.curve,
+        &ctx.accounts.blacklist_entry,
+        ctx.program_id,
+        now,
+    )?;
+    let price = ctx.accounts.perk.price_lamports;
+    require!(price > 0, MostroError::WrongPerkPayment);
+    require!(price <= max_lamports, MostroError::SlippageExceeded);
+
+    let (curve_half, artist_half) = curve::hybrid_halves(price);
+    let q = curve::buy_exact_in(
+        ctx.accounts.curve.virtual_sol_reserves,
+        ctx.accounts.curve.virtual_token_reserves,
+        curve_half,
+        ctx.accounts.config.fee_bps,
+    )?;
+    let tokens_from_curve = q.tokens_out;
+    require!(tokens_from_curve > 0, MostroError::InvalidAmount);
+    require!(
+        ctx.accounts.artist_reserve.amount >= tokens_from_curve,
+        MostroError::InsufficientReserves
+    );
+    record_spend(
+        &ctx.accounts.config,
+        &mut ctx.accounts.spend,
+        ctx.bumps.spend,
+        ctx.accounts.curve.key(),
+        ctx.accounts.buyer.key(),
+        curve_half,
+        now,
+    )?;
+
+    // 1. SOL: curve net, protocol fee, artist half.
+    pay_sol(&ctx, q.net_in, q.fee, artist_half)?;
+
+    // 2. Tokens: the curve leg moves the price like a buy; both legs are burned / rewarded.
+    let (burn_c, rewards_c) = curve::split_redeem(tokens_from_curve)?;
+    settle_vault_tokens(
+        &ctx.accounts.token_program,
+        &ctx.accounts.mint,
+        &ctx.accounts.rewards_vault,
+        &ctx.accounts.curve,
+        &ctx.accounts.curve_vault,
+        burn_c,
+        rewards_c,
+    )?;
+    settle_vault_tokens(
+        &ctx.accounts.token_program,
+        &ctx.accounts.mint,
+        &ctx.accounts.rewards_vault,
+        &ctx.accounts.curve,
+        &ctx.accounts.artist_reserve,
+        burn_c,
+        rewards_c,
+    )?;
+    let burned = burn_c * 2;
+    let to_rewards = rewards_c * 2;
+
+    // 3. Mint the Core asset.
+    let edition = ctx.accounts.perk.sold + 1;
+    mint_core_asset(
+        &MintAsset {
+            mpl_core_program: ctx.accounts.mpl_core_program.to_account_info(),
+            asset: ctx.accounts.asset.to_account_info(),
+            collection: ctx.accounts.collection.to_account_info(),
+            artist: &ctx.accounts.artist,
+            payer: ctx.accounts.payer.to_account_info(),
+            owner: ctx.accounts.buyer.to_account_info(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+            perk: &ctx.accounts.perk,
+            perk_key: ctx.accounts.perk.key(),
+            nonce,
+            asset_bump: ctx.bumps.asset,
+        },
+        edition,
+    )?;
+
+    // 4. Receipt + counters.
+    let lamports_to_curve = q
+        .net_in
+        .checked_add(q.fee)
+        .ok_or(MostroError::MathOverflow)?;
+    let receipt_bump = ctx.bumps.receipt;
+    let r = &mut ctx.accounts.receipt;
+    write_receipt(
+        r,
+        receipt_bump,
+        ReceiptData {
+            buyer: ctx.accounts.buyer.key(),
+            perk: ctx.accounts.perk.key(),
+            artist: ctx.accounts.artist.key(),
+            asset: ctx.accounts.asset.key(),
+            edition,
+            kind: ctx.accounts.perk.kind,
+            tier: ctx.accounts.perk.tier,
+            paid_tokens: 0,
+            paid_lamports: price,
+            tokens_from_curve,
+            tokens_from_artist: tokens_from_curve,
+            burned,
+            to_rewards,
+            lamports_to_curve,
+            lamports_to_artist: artist_half,
+            ts: now,
+        },
+    );
+    ctx.accounts.perk.sold = edition;
+    let curve = &mut ctx.accounts.curve;
+    apply_buy(curve, q.net_in, tokens_from_curve)?;
+    curve.real_sol_reserves = curve
+        .real_sol_reserves
+        .checked_add(q.net_in)
+        .ok_or(MostroError::MathOverflow)?;
+    curve.artist_reserve_used = curve
+        .artist_reserve_used
+        .checked_add(tokens_from_curve)
+        .ok_or(MostroError::MathOverflow)?;
+    curve.total_burned = curve
+        .total_burned
+        .checked_add(burned)
+        .ok_or(MostroError::MathOverflow)?;
+    curve.rewards_accrued = curve
+        .rewards_accrued
+        .checked_add(to_rewards)
+        .ok_or(MostroError::MathOverflow)?;
+    let artist = &mut ctx.accounts.artist;
+    artist.revenue_lamports = artist
+        .revenue_lamports
+        .checked_add(artist_half)
+        .ok_or(MostroError::MathOverflow)?;
+
+    emit!(TokensBought {
+        curve: curve.key(),
+        mint: ctx.accounts.mint.key(),
+        buyer: ctx.accounts.buyer.key(),
+        quote_kind: 2,
+        quote_in: lamports_to_curve,
+        quote_net: q.net_in,
+        fee: q.fee,
+        tokens_out: tokens_from_curve,
+        virtual_sol_reserves: curve.virtual_sol_reserves,
+        virtual_token_reserves: curve.virtual_token_reserves,
+    });
+    emit!(PerkRedeemed {
+        perk: ctx.accounts.perk.key(),
         artist: artist.key(),
         buyer: ctx.accounts.buyer.key(),
         asset: ctx.accounts.asset.key(),
         receipt: ctx.accounts.receipt.key(),
         edition,
-        kind: perk.kind,
-        tier: perk.tier,
-        paid,
+        kind: ctx.accounts.perk.kind,
+        tier: ctx.accounts.perk.tier,
+        paid_tokens: 0,
+        paid_lamports: price,
+        tokens_from_curve,
+        tokens_from_artist: tokens_from_curve,
         burned,
         to_rewards,
-        to_artist,
-        discount_bps: effective_discount,
-        pass_used,
+        lamports_to_curve,
+        lamports_to_artist: artist_half,
     });
     Ok(())
 }
+
+#[inline(never)]
+fn pay_sol(ctx: &Context<BuyPerkSol>, net: u64, fee: u64, artist_half: u64) -> Result<()> {
+    let sys = ctx.accounts.system_program.to_account_info();
+    let from = ctx.accounts.buyer.to_account_info();
+    for (amount, to) in [
+        (net, ctx.accounts.sol_vault.to_account_info()),
+        (fee, ctx.accounts.treasury.to_account_info()),
+        (artist_half, ctx.accounts.artist_authority.to_account_info()),
+    ] {
+        if amount > 0 {
+            transfer(
+                CpiContext::new(
+                    sys.clone(),
+                    Transfer {
+                        from: from.clone(),
+                        to,
+                    },
+                ),
+                amount,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Burns `burned` from a curve-owned vault and moves `to_rewards` from it to the rewards vault.
+#[inline(never)]
+fn settle_vault_tokens<'info>(
+    token_program: &Interface<'info, TokenInterface>,
+    mint: &InterfaceAccount<'info, Mint>,
+    rewards_vault: &InterfaceAccount<'info, TokenAccount>,
+    curve: &Account<'info, Curve>,
+    vault: &InterfaceAccount<'info, TokenAccount>,
+    burned: u64,
+    to_rewards: u64,
+) -> Result<()> {
+    let index = curve.index.to_le_bytes();
+    let seeds: &[&[u8]] = &[CURVE_SEED, &index, &[curve.bump]];
+    if burned > 0 {
+        burn(
+            CpiContext::new_with_signer(
+                token_program.to_account_info(),
+                Burn {
+                    mint: mint.to_account_info(),
+                    from: vault.to_account_info(),
+                    authority: curve.to_account_info(),
+                },
+                &[seeds],
+            ),
+            burned,
+        )?;
+    }
+    if to_rewards > 0 {
+        transfer_checked(
+            CpiContext::new_with_signer(
+                token_program.to_account_info(),
+                TransferChecked {
+                    from: vault.to_account_info(),
+                    mint: mint.to_account_info(),
+                    to: rewards_vault.to_account_info(),
+                    authority: curve.to_account_info(),
+                },
+                &[seeds],
+            ),
+            to_rewards,
+            mint.decimals,
+        )?;
+    }
+    Ok(())
+}
+
+// ---- fulfilment ---------------------------------------------------------------------------------
 
 /// Artist (or admin) marks an off-chain perk as delivered.
 #[derive(Accounts)]
@@ -465,15 +757,74 @@ pub fn fulfill_receipt(ctx: Context<FulfillReceipt>) -> Result<()> {
     Ok(())
 }
 
-/// Signers: asset PDA + artist PDA (the collection's update authority).
+// ---- shared helpers -----------------------------------------------------------------------------
+
+struct ReceiptData {
+    buyer: Pubkey,
+    perk: Pubkey,
+    artist: Pubkey,
+    asset: Pubkey,
+    edition: u32,
+    kind: PerkKind,
+    tier: u8,
+    paid_tokens: u64,
+    paid_lamports: u64,
+    tokens_from_curve: u64,
+    tokens_from_artist: u64,
+    burned: u64,
+    to_rewards: u64,
+    lamports_to_curve: u64,
+    lamports_to_artist: u64,
+    ts: i64,
+}
+
+fn write_receipt(r: &mut Receipt, bump: u8, d: ReceiptData) {
+    r.bump = bump;
+    r.version = 2;
+    r.buyer = d.buyer;
+    r.perk = d.perk;
+    r.artist = d.artist;
+    r.asset = d.asset;
+    r.edition = d.edition;
+    r.kind = d.kind;
+    r.tier = d.tier;
+    r.paid_tokens = d.paid_tokens;
+    r.paid_lamports = d.paid_lamports;
+    r.tokens_from_curve = d.tokens_from_curve;
+    r.tokens_from_artist = d.tokens_from_artist;
+    r.burned = d.burned;
+    r.to_rewards = d.to_rewards;
+    r.lamports_to_curve = d.lamports_to_curve;
+    r.lamports_to_artist = d.lamports_to_artist;
+    r.ts = d.ts;
+    r.fulfilled = false;
+    r.fulfilled_ts = 0;
+}
+
+struct MintAsset<'a, 'info> {
+    mpl_core_program: AccountInfo<'info>,
+    asset: AccountInfo<'info>,
+    collection: AccountInfo<'info>,
+    artist: &'a Account<'info, Artist>,
+    payer: AccountInfo<'info>,
+    owner: AccountInfo<'info>,
+    system_program: AccountInfo<'info>,
+    perk: &'a Perk,
+    perk_key: Pubkey,
+    nonce: u64,
+    asset_bump: u8,
+}
+
+/// Mints the perk's Core asset. Signers: asset PDA + artist PDA (the collection's update
+/// authority). Attributes carry what the web app needs to render the benefit.
 #[inline(never)]
-fn mint_core_asset(ctx: &Context<RedeemPerk>, nonce: u64, edition: u32) -> Result<()> {
-    let perk = &ctx.accounts.perk;
-    let perk_key = perk.key();
-    let nonce_le = nonce.to_le_bytes();
-    let asset_seeds: &[&[u8]] = &[ASSET_SEED, perk_key.as_ref(), &nonce_le, &[ctx.bumps.asset]];
-    let artist_index = ctx.accounts.artist.index.to_le_bytes();
-    let artist_seeds: &[&[u8]] = &[ARTIST_SEED, &artist_index, &[ctx.accounts.artist.bump]];
+fn mint_core_asset(a: &MintAsset, edition: u32) -> Result<()> {
+    let perk = a.perk;
+    let perk_key = a.perk_key;
+    let nonce_le = a.nonce.to_le_bytes();
+    let asset_seeds: &[&[u8]] = &[ASSET_SEED, perk_key.as_ref(), &nonce_le, &[a.asset_bump]];
+    let artist_index = a.artist.index.to_le_bytes();
+    let artist_seeds: &[&[u8]] = &[ARTIST_SEED, &artist_index, &[a.artist.bump]];
     let kind_str = match perk.kind {
         PerkKind::Pass => "pass",
         PerkKind::Music => "music",
@@ -482,7 +833,7 @@ fn mint_core_asset(ctx: &Context<RedeemPerk>, nonce: u64, edition: u32) -> Resul
     };
     let tier_str = match (perk.kind, perk.tier) {
         (PerkKind::Pass, TIER_VIP) => "VIP",
-        (PerkKind::Pass, _) => "Standard",
+        (PerkKind::Pass, _) => "Classic",
         _ => "-",
     };
     let plugins = vec![
@@ -499,7 +850,7 @@ fn mint_core_asset(ctx: &Context<RedeemPerk>, nonce: u64, edition: u32) -> Resul
                     },
                     Attribute {
                         key: "artist".into(),
-                        value: ctx.accounts.artist.name.clone(),
+                        value: a.artist.name.clone(),
                     },
                     Attribute {
                         key: "edition".into(),
@@ -517,61 +868,17 @@ fn mint_core_asset(ctx: &Context<RedeemPerk>, nonce: u64, edition: u32) -> Resul
     let mut name = perk.name.clone();
     name.push_str(" #");
     name.push_str(&edition.to_string());
-    CreateV2CpiBuilder::new(&ctx.accounts.mpl_core_program.to_account_info())
-        .asset(&ctx.accounts.asset.to_account_info())
-        .collection(Some(&ctx.accounts.collection.to_account_info()))
-        .authority(Some(&ctx.accounts.artist.to_account_info()))
-        .payer(&ctx.accounts.payer.to_account_info())
-        .owner(Some(&ctx.accounts.buyer.to_account_info()))
-        .system_program(&ctx.accounts.system_program.to_account_info())
+    CreateV2CpiBuilder::new(&a.mpl_core_program)
+        .asset(&a.asset)
+        .collection(Some(&a.collection))
+        .authority(Some(&a.artist.to_account_info()))
+        .payer(&a.payer)
+        .owner(Some(&a.owner))
+        .system_program(&a.system_program)
         .name(name)
         .uri(perk.uri.clone())
         .plugins(plugins)
         .invoke_signed(&[asset_seeds, artist_seeds])?;
-    Ok(())
-}
-
-#[inline(never)]
-fn pay_split(
-    ctx: &Context<RedeemPerk>,
-    burned: u64,
-    to_rewards: u64,
-    to_artist: u64,
-) -> Result<()> {
-    if burned > 0 {
-        burn(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Burn {
-                    mint: ctx.accounts.mint.to_account_info(),
-                    from: ctx.accounts.buyer_ata.to_account_info(),
-                    authority: ctx.accounts.buyer.to_account_info(),
-                },
-            ),
-            burned,
-        )?;
-    }
-    let decimals = ctx.accounts.mint.decimals;
-    for (amount, to) in [
-        (to_rewards, ctx.accounts.rewards_vault.to_account_info()),
-        (to_artist, ctx.accounts.artist_vault.to_account_info()),
-    ] {
-        if amount > 0 {
-            transfer_checked(
-                CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    TransferChecked {
-                        from: ctx.accounts.buyer_ata.to_account_info(),
-                        mint: ctx.accounts.mint.to_account_info(),
-                        to,
-                        authority: ctx.accounts.buyer.to_account_info(),
-                    },
-                ),
-                amount,
-                decimals,
-            )?;
-        }
-    }
     Ok(())
 }
 

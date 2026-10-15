@@ -94,43 +94,46 @@ Keys to fill in:
 
 ## Solana programs
 
-The on-chain side lives in `programs/mostro` (Anchor 0.32.1, program id `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK`, devnet). It holds the `$MOST` bonding curve, artists, perks and the MoOG Pass redemption flow. Buys and redeems take a `payer` signer separate from the buyer (same key by default) so a sponsor such as Openfort or Kora can cover rent and Metaplex Core fees; Pass perks are admin-only, artist vaults are withdrawable by the artist alone, and the optional KYC gate covers buys and sells.
+The on-chain side lives in `programs/mostro` (Anchor 0.32.1, program id `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK`, devnet). It implements the contract logic agreed in the 2026-10-13 review: one token per artist with a fixed 1B supply (28 % sold on a buy-only bonding curve, 7 % DEX reserve, 15 % Mostro reserve, 50 % artist reserve), cold reserves and the treasury behind a weighted multisig (admins weigh 1, super-admins 2, execution needs more than 51 %), a 24 h launch cool-down, a blacklist instead of on-chain KYC, a per-wallet monthly SOL cap, two circuit breakers, and perks paid in tokens or in SOL (half curve, half artist reserve) that burn 80 % of the tokens involved and send 20 % to a rewards vault before minting a Metaplex Core asset. Pass benefits are applied by the web app. Buys and perk purchases take a `payer` signer separate from the buyer (same key by default) so a sponsor such as Openfort or Kora can cover rent and Core fees.
 
-Toolchain: Rust 1.89.0 (`rust-toolchain.toml`), Solana CLI 3.1.12, anchor-cli 0.32.1, Node 24.
+Toolchain: Rust 1.89.0 (`rust-toolchain.toml`), Solana CLI 3.1.12, anchor-cli 0.32.1, surfpool 1.0.0-rc1, Node 24.
 
 ```bash
 yarn install                   # root workspace (Anchor TS client, test tooling)
 anchor build                   # programs/mostro -> target/deploy, target/idl, target/types
-yarn test:unit                 # cargo test -p mostro --lib (curve and pricing math)
+yarn test:unit                 # cargo test -p mostro --lib (curve, split, threshold, pricing)
 yarn test:programs             # integration suite on a fresh surfpool fork of devnet (scripts/test-local.sh)
-anchor deploy                  # cluster from Anchor.toml (devnet)
+anchor deploy                  # cluster from Anchor.toml (devnet); read programs/mostro/README.md "Upgrading devnet" first
 yarn export:shared             # copy IDL and types into shared/
-yarn seed:devnet               # initialize config, $MOST curve, demo artist and perks
-npx ts-node scripts/demo-one-tx.ts   # buy exact $MOST + redeem the pass in one transaction
-npx ts-node scripts/set-kyc.ts <wallet> true GB      # approve a wallet (kyc_required is on: needed before any buy/sell)
-npx ts-node scripts/set-config.ts key=value ...      # admin switchboard: kycRequired, paused, feeBps, adminPriceMaxAgeSecs, ...
-npx ts-node scripts/set-price.ts <0|1> [priceUsd]    # SOL/USD source; refreshes the admin price (expires after 24 h)
-npx ts-node scripts/demo-buy.ts [sol]                # buy, redeem a pass, redeem a perk with the pass discount
+yarn seed:devnet               # initialize config, artist #0, its token, demo perks; writes shared/addresses/devnet.json
+npx ts-node scripts/demo-buy.ts [sol]                # buy, redeem the Classic pass with tokens, buy the hybrid drop with SOL
+npx ts-node scripts/demo-one-tx.ts [perkIndex]       # buy exact tokens + redeem the pass in one transaction
 npx ts-node scripts/demo-sponsored.ts [perkIndex]    # fan wallet with 0 SOL redeems a perk; the CLI wallet pays as `payer`
+npx ts-node scripts/set-blacklist.ts <wallet> true   # block a wallet (everyone is allowed by default)
+npx ts-node scripts/set-config.ts key=value ...      # admin switchboard: buysPaused, redeemsPaused, feeBps, launchCooldownSecs, maxSpendPerPeriodLamports, ...
+npx ts-node scripts/set-price.ts <0|1> [priceUsd]    # SOL/USD source; refreshes the admin price
+npx ts-node scripts/governance.ts <members|proposals|propose-member|propose-transfer|approve|execute|cancel|pause>
 ```
 
-Devnet status (2026-10-09): program [`6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK`](https://explorer.solana.com/address/6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK?cluster=devnet) with the IDL on-chain, `.so` 731,640 of 800,000 reserved bytes. `kyc_required = true`, so every new wallet must be approved with `set-kyc.ts` before buying or selling; redeems are not gated. Admin SOL/USD price valid 24 h (`admin_price_max_age_secs = 86_400`). Measured `redeem_perk`: 109,290 CU, 0.00544748 SOL charged to the payer. Reference transactions: [redeem with the pass discount](https://explorer.solana.com/tx/3gAt6NB9cNwr8bf3UpoqMmens4vzYu3AocQAHTsbT5csRBqH6GvgEhCApTdp2u1yBf7VcUsWX9KX6BX3Hq5AAH6o?cluster=devnet), [pass asset](https://explorer.solana.com/address/8V69nDgc24kERDDyMLQgeGAjNttxUa4KZBwJLXT83q6m?cluster=devnet), [sponsored redeem by a 0-SOL wallet](https://explorer.solana.com/tx/4kb1hVAH1dPvM8dBrB2ZumCddM62aSe46mkS7X51cqfCSeh8QDP9Xz5RSRGbY9bDtUq2cs5TLhQ1fbFgyDnbTBZJ?cluster=devnet).
+Devnet status: the deployment at slot 509182643 runs the previous version (bonding curve with sells, KYC gate, on-chain pass benefits). This version has not been deployed yet: the binary grew to 898,712 bytes against 800,000 reserved and every account layout changed, so the upgrade needs `solana program extend` plus a fresh config (see `programs/mostro/README.md`). Verified locally: 12 Rust unit tests, 36 SDK tests and a 30-case integration suite on a surfpool fork of devnet.
 
 Documentation:
 
-- [`programs/mostro/docs/ARCHITECTURE.md`](programs/mostro/docs/ARCHITECTURE.md): accounts, flows, on-chain pass benefits, limitations, roadmap.
-- [`programs/mostro/docs/FRONTEND.md`](programs/mostro/docs/FRONTEND.md): handoff for the apps: PDAs, instructions and account order, read patterns, costs, error codes.
-- [`programs/mostro/README.md`](programs/mostro/README.md): build, test and deploy commands.
+- [`programs/mostro/docs/ARCHITECTURE.md`](programs/mostro/docs/ARCHITECTURE.md): fixed numbers, accounts, flows, governance, limitations, roadmap.
+- [`programs/mostro/docs/FRONTEND.md`](programs/mostro/docs/FRONTEND.md): handoff for the apps: PDAs, instructions and account order, read patterns, costs, error codes, migration notes.
+- [`programs/mostro/README.md`](programs/mostro/README.md): build, test, deploy and upgrade commands.
+- [`shared/README.md`](shared/README.md): the TypeScript SDK.
 - [`SECURITY.md`](SECURITY.md): security model, authorities, how to report.
 - [`CHANGELOG.md`](CHANGELOG.md).
 
 Frontends import the program id, PDAs, IDL and types from the `shared` workspace package (`shared/addresses/devnet.json`, `shared/idl/mostro.json`, `shared/types/mostro.ts`) and never copy constants by hand.
 
-### Design rationale (the questions judges ask first)
+### Design rationale (the questions reviewers ask first)
 
-- **Why a bonding curve for a membership product?** The curve is fan capital formation and price discovery for `$MOST`; the perks are access rights with a fixed `$MOST` price and tier benefits the program enforces. The two are decoupled on purpose: redeeming a perk burns part of the payment and routes the rest, it never trades against the curve, so a demo of the money shot does not depend on curve liquidity.
-- **Why not Meteora DBC or Raydium LaunchLab?** Neither exposes a per-perk burn / rewards / artist split or a KYC gate on the trading path, and DBC's licence is non-commercial. The curve is ~250 lines of integer math that mirrors the MIT-licensed pump-sdk formulas, with the same rounding in `shared/src/curve.ts` so quotes match on-chain results to the unit. Graduation to an AMM is on the roadmap.
-- **Where does the KYC data live?** Off-chain, at the identity provider. On-chain there is only `Kyc { approved, country, updated_ts }` per wallet, written by the admin after the check. No PII touches the chain.
-- **What stops an artist from minting itself a VIP pass?** Pass perks are admin-only; the program verifies a presented pass against the pass perk's Core collection and the buyer as owner. See `tests/mostro.ts`.
+- **Why is the supply fixed and minted up front?** So that the 28 / 7 / 15 / 50 split is a fact of the mint, not a promise of the program: `create_curve` mints 1B into four vaults and revokes the mint authority in the same instruction. Buys transfer from the hot vault; nothing can ever be minted again.
+- **Why no sell?** The primary market supports the price with buys only; holders exit on the DEX after graduation. There is no instruction that pays SOL out of the curve to a user, so the design cannot be switched off by a flag.
+- **Who can move the reserves?** Only an executed governance proposal. Members weigh 1 (admin) or 2 (super-admin) and execution needs strictly more than 51 % of the live total weight; the executor recomputes the source vault from the proposal, so a proposal moves exactly what it names. The operator key has no withdrawal path at all.
+- **Where does identity live?** Off-chain (Openfort, Sumsub). On-chain there is only a blacklist entry per blocked wallet; everyone else is allowed. Buys and redeems take the buyer's own blacklist PDA, seeds-checked, so it cannot be dodged.
+- **How does a paid perk work?** `buy_perk_sol`: half of the SOL buys tokens on the curve (and moves the price like any buy), half goes to the artist wallet; the same number of tokens leaves the artist reserve; all of those tokens are burned 80 % / sent to rewards 20 %. Free-with-tokens perks (`redeem_perk`) apply the same split to the tokens the fan pays.
+- **Where did pass benefits go?** To the web app, from the pass asset the wallet holds. The program writes `kind`, `tier`, `artist` and `edition` into the asset's attributes and interprets none of them.
 - **Who pays the ~0.006 SOL of rent and Core fee when the wallet is empty?** The `payer` signer, which is separate from `buyer` in every user instruction. Self-paid by default; a sponsor (Openfort, Kora) co-signs in production.
-- **Does burning move the price?** No. The curve prices on virtual reserves; burns reduce supply and market cap, not the spot price. Documented in `programs/mostro/docs/ARCHITECTURE.md`.

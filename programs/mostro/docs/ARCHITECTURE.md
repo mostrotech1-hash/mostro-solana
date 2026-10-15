@@ -1,100 +1,138 @@
 # Architecture: the `mostro` program
 
-Reader: an engineer or reviewer who wants to understand what the program does on-chain and why. After reading, you can follow every lamport and every token through the four flows and know the current limitations.
+Reader: an engineer or reviewer who wants to understand what the program does on-chain and why. After reading, you can follow every lamport and every token through the flows, know who can sign what, and know the current limitations.
 
-One Anchor 0.32.1 program, id `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK`, four concerns:
+This is the contract logic agreed in the 2026-10-13 contract review: one token per artist with a fixed supply, a buy-only curve, cold reserves behind a weighted multisig, a 24 h launch cool-down, a blacklist instead of on-chain KYC, an anti-whale cap, and perks that burn 80 % of the tokens they consume. Pass benefits are applied by the web app, not on-chain.
 
-| Module                    | Concern                                                                                                                |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `instructions/config.rs`  | Admin with cool-off transfer, pause switch, protocol fee, SOL/USD price source, KYC attestations, treasury withdrawals |
-| `instructions/trading.rs` | A constant-product bonding curve that mints `$MOST` on demand for SOL or USDC and buys it back for SOL                 |
-| `instructions/artist.rs`  | Artists that open perks and collect their share in a vault                                                             |
-| `instructions/perks.rs`   | Perks priced in `$MOST`; redeeming burns part of the payment, routes the rest, and mints a Metaplex Core asset         |
+One Anchor 0.32.1 program, id `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK`, five concerns:
 
-Pure math lives in `curve.rs` (curve quotes, splits, discounts) and `pricing.rs` (SOL/USD). Neither touches accounts, and both have unit tests.
+| Module                       | Concern                                                                                                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `instructions/config.rs`     | The operator key ("admin"): fees, SOL/USD price source, circuit breakers, blacklist, launch cool-down, anti-whale cap, admin rotation with cool-off            |
+| `instructions/governance.rs` | Weighted multisig: proposals, approvals, execution of cold-vault / treasury transfers and membership changes                                                   |
+| `instructions/trading.rs`    | Artist tokens: one-shot mint of the fixed supply into four vaults, metadata, mint authority revoked; buy-only constant-product curve served from the hot vault |
+| `instructions/artist.rs`     | Artists onboarded by the admin; they manage perks and receive SOL from hybrid perks                                                                            |
+| `instructions/perks.rs`      | Perks paid in tokens (`redeem_perk`) or in SOL (`buy_perk_sol`); 80 % burn / 20 % rewards; Metaplex Core asset + receipt per redemption                        |
 
-## 1. Accounts
+Pure math lives in `curve.rs` (buy quotes, the fixed split, hybrid halves) and `pricing.rs` (SOL/USD). Neither touches accounts, and both have unit tests. `state.rs` holds every account layout, seed and protocol constant.
+
+## 1. Fixed numbers
+
+These are constants in `state.rs`, not configuration. Changing them is a program upgrade.
+
+| Constant                              | Value                             | Where it bites                                                    |
+| ------------------------------------- | --------------------------------- | ----------------------------------------------------------------- |
+| `TOTAL_SUPPLY`                        | 1,000,000,000 tokens (6 decimals) | Minted once in `create_curve`; mint authority revoked right after |
+| `CURVE_ALLOCATION`                    | 280,000,000 (28 %)                | Hot vault `curve_vault`; also `curve.supply_cap`                  |
+| `DEX_ALLOCATION`                      | 70,000,000 (7 %)                  | Cold vault `dex_reserve`, for the DEX pool at graduation          |
+| `MOSTRO_ALLOCATION`                   | 150,000,000 (15 %)                | Cold vault `mostro_reserve`                                       |
+| `ARTIST_ALLOCATION`                   | 500,000,000 (50 %)                | Cold vault `artist_reserve`; also the artist leg of hybrid perks  |
+| `BURN_BPS` / `REWARDS_BPS`            | 8,000 / 2,000                     | Every redeem, both payment modes                                  |
+| `THRESHOLD_PERCENT`                   | 51 (strictly more than)           | Proposal execution                                                |
+| `WEIGHT_ADMIN` / `WEIGHT_SUPER_ADMIN` | 1 / 2                             | Member voting weight                                              |
+| `SPEND_PERIOD_SECS`                   | 30 days                           | Anti-whale window                                                 |
+
+The 35 % "sales" share of the product spec is the 28 % curve allocation plus the 7 % DEX reserve. A `const` assertion keeps the four allocations summing to the total.
+
+## 2. Accounts
 
 ```
-                               ["config"]                     ["treasury"]
-                            +--------------+               +-----------------+
-                            |    Config    |  admin, fee,  |  treasury (SOL) |
-                            |              |  price, pass  +-----------------+
-                            |  admin ------+-- benefits,   | treasury_usdc   |  ATA(config, USDC)
-                            |  usdc_mint   |  kyc_required +-----------------+
-                            +------+-------+
-                                   | curve_count / artist_count
-          +------------------------+---------------------------+
-          v                                                    v
- ["curve", i]                                          ["artist", j]
-+----------------------+                              +----------------------+
-|        Curve         |  mint authority              |        Artist        |
-|  virtual_sol         +---------> ["mint", i]        |  authority (wallet)  |
-|  virtual_tokens      |           $MOST mint         |  perk_count          |
-|  real_sol_reserves   |                              |  revenue_tokens      |
-|  supply_cap, sold    |  signer for                  +----------+-----------+
-+--+-------+-------+---+  all vaults                             |
-   |       |       |                                             | perk_count
-   |       |       +--> ["sol_vault", curve]   system account    v
-   |       |            real SOL that backs sells      ["perk", artist, k]
-   |       +----------> ["rewards", curve]     token acct   +----------------------+
-   |                    20% of every redeem             |         Perk         |
-   +------------------> ATA(curve, USDC)       usdc_vault  |  kind, tier, price   |
-                        USDC received on buys           |  burn/rewards bps    |
-                                                        |  max_supply, sold    |
- ["artist_vault", artist, mint]  token acct             |  public_start_ts     |
-   artist share of redeems, authority = artist          |  vip_only, discount  |
-                                                        +----+-----------+-----+
- ["kyc", wallet]                                             |           |
-+----------------+                               ["collection", perk]   |
-|      Kyc       |  approved, country             Metaplex Core          |
-+----------------+                               BaseCollectionV1       |
-                                                 update authority =     |
-                                                 artist PDA             |
-                                                        ^               |
-                                                        | member        v
-                                                 ["asset", perk, nonce]      ["receipt", asset]
-                                                 Metaplex Core BaseAssetV1   +------------------+
-                                                 owner = buyer               |     Receipt      |
-                                                 plugins: Attributes,        |  buyer, perk,    |
-                                                 Edition                     |  paid, burned,   |
-                                                                             |  pass_used,      |
-                                                                             |  fulfilled       |
-                                                                             +------------------+
+                       ["config"]                        ["treasury"] (SOL)   ATA(config, USDC)
+                    +---------------+                    +-----------------+  +-----------------+
+                    |    Config     | admin, fees, price, |    treasury     |  |  treasury_usdc  |
+                    |  total_weight | breakers, cool-down,+-----------------+  +-----------------+
+                    |  proposal_cnt | cap, ttl                 ^ fees                 ^ fees
+                    +-------+-------+                           moved only by an executed proposal
+                            |
+      +---------------------+----------------------+------------------------+
+      v                     v                      v                        v
+ ["member", wallet]   ["proposal", i]        ["artist", j]            ["blacklist", wallet]
+ +--------------+     +---------------+      +------------------+     +----------------+
+ |   Member     |     |   Proposal    |      |     Artist       |     |   Blacklist    |
+ |  role (0/1/2)|     | kind, vault,  |      | authority        |     | blocked        |
+ +--------------+     | dest, amount, |      | curve -----------+--+  +----------------+
+        ^ votes       | wallet, role, |      | perk_count       |  |
+        |             | approved_wt   |      | revenue_lamports |  |
+ ["approval", proposal, wallet]             +--------+---------+  |
+ +--------------+                                     | perk_count  |
+ |  Approval    |                                     v             v
+ | weight, ts   |                           ["perk", artist, k]   ["curve", i]
+ +--------------+                           +-----------------+   +-------------------------+
+                                            |      Perk       |   |        Curve            |
+                                            | kind, tier      |   | artist, mint            |
+                                            | price_tokens    |   | virtual_sol/_tokens     |
+                                            | price_lamports  |   | real_sol_reserves       |
+                                            | max_supply,sold |   | supply_cap = 280M       |
+                                            | public_start_ts |   | tokens_sold             |
+                                            | collection -----+-+ | artist_reserve_used     |
+                                            +--------+--------+ | | sale_start_ts, complete |
+                                                     |          | +----+--+--+--+--+--+--+--+
+                                      ["asset", perk, nonce]   |      |  |  |  |  |  |  |
+                                      Core BaseAssetV1  <------+      |  |  |  |  |  |  +--> ["mint", i]       SPL mint, authority = None
+                                      owner = buyer       member of   |  |  |  |  |  +-----> ["curve_vault", curve]    hot, 280M
+                                      attrs: kind, tier,  collection  |  |  |  |  +--------> ["artist_reserve", curve] cold, 500M
+                                             artist, edition          |  |  |  +-----------> ["mostro_reserve", curve] cold, 150M
+                                               |                      |  |  +--------------> ["dex_reserve", curve]    cold, 70M
+                                      ["receipt", asset]              |  +-----------------> ["rewards", curve]        20 % of redeems
+                                      +----------------+              +--------------------> ["sol_vault", curve]      SOL from buys
+                                      |    Receipt     |                                     ATA(curve, USDC)          USDC from buys
+                                      | buyer, perk,   |
+                                      | paid_*, burned,|          ["spend", curve, wallet]   SpendTracker: period, spent_lamports
+                                      | to_rewards,    |
+                                      | lamports_to_*  |
+                                      +----------------+
 ```
 
 Who signs for what:
 
-| Authority                        | Held by                                                    | Used in                                           |
-| -------------------------------- | ---------------------------------------------------------- | ------------------------------------------------- |
-| `$MOST` mint authority           | `curve` PDA                                                | `buy_tokens_*` (mint)                             |
-| `sol_vault` lamports             | `sol_vault` PDA (system account, program signs with seeds) | `sell_tokens`                                     |
-| `rewards_vault` tokens           | `curve` PDA                                                | no instruction spends it yet                      |
-| `usdc_vault` tokens              | `curve` PDA                                                | no instruction spends it yet                      |
-| `artist_vault` tokens            | `artist` PDA                                               | `withdraw_artist_vault` (artist authority only)   |
-| `treasury` SOL, `treasury_usdc`  | `treasury` PDA / `config` PDA                              | `withdraw_treasury_sol`, `withdraw_treasury_usdc` |
-| Core collection update authority | `artist` PDA                                               | `redeem_perk` (mint into collection)              |
-| Core asset creation              | `asset` PDA signs its own creation                         | `redeem_perk`                                     |
+| Authority                                                      | Held by                                                    | Used in                                                                           |
+| -------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Mint authority                                                 | nobody (revoked in `create_curve`)                         | never again                                                                       |
+| `curve_vault`, the three reserves, `rewards_vault`, USDC vault | `curve` PDA                                                | buys and hybrid perks (hot vault, artist reserve); `execute_token_transfer` (all) |
+| `sol_vault` lamports                                           | `sol_vault` PDA (system account, program signs with seeds) | `execute_sol_transfer`                                                            |
+| `treasury` SOL, `treasury_usdc`                                | `treasury` PDA / `config` PDA                              | `execute_sol_transfer`, `execute_token_transfer`                                  |
+| Core collection update authority                               | `artist` PDA                                               | `redeem_perk`, `buy_perk_sol` (mint into collection)                              |
+| Core asset creation                                            | `asset` PDA signs its own creation                         | `redeem_perk`, `buy_perk_sol`                                                     |
 
 Every token account is an `InterfaceAccount` with an explicit `token_program`, so a Token-2022 mint works without code changes. The devnet deployment uses the legacy token program.
 
-## 2. Flows
+## 3. Flows
 
-### 2.1 Buy on the curve with SOL
+### 3.1 Create an artist token (`create_curve`, admin)
 
 ```
+require artist.curve == default              (one token per artist)
+sale_start_ts = max(args.sale_start_ts, now + config.launch_cooldown_secs)
+fund sol_vault with the rent floor
+mint 280M -> curve_vault, 500M -> artist_reserve, 150M -> mostro_reserve, 70M -> dex_reserve   signer: curve PDA
+create Token Metadata (name, symbol, uri; mint + update authority = curve)                    needs the mint authority
+set_authority(mint, MintTokens, None)                                                         supply fixed forever
+artist.curve = curve
+```
+
+Everything happens in one instruction so there is never a token whose supply can still grow or that lacks metadata. The curve's virtual reserves come from the arguments (`virtual_token_reserves` must exceed the 280M allocation); `supply_cap` is the allocation itself.
+
+### 3.2 Launch cool-down
+
+`created_at + launch_cooldown_secs` is the earliest `sale_start_ts` (the admin may push it later, not earlier). Buys before that fail with `SaleNotStarted`. The product value is 24 h (`86_400`); `initialize_config` takes it as an argument so a devnet seed can use a shorter one, and `set_config` can change it for future tokens (existing curves keep the `sale_start_ts` they were created with).
+
+### 3.3 Buy on the curve with SOL
+
+```
+gates   !buys_paused, !complete, now >= sale_start_ts, not blacklisted, spend cap
 buyer --lamports_in--> [fee -> treasury] [net -> sol_vault]
 curve: virtual_sol += net, virtual_tokens -= out, real_sol += net, tokens_sold += out
-mint_to(buyer_ata, out)     signer: curve PDA
+curve_vault --out--> buyer_ata                      signer: curve PDA (a transfer, not a mint)
+spend.spent_lamports += lamports_in                  (reset when the 30-day period changed)
 ```
 
 `net = (lamports_in - 1) * 10_000 / (10_000 + fee_bps)`, `out = net * VT / (VQ + net)`. The integer formulas follow the MIT-licensed `@pump-fun/pump-sdk`, so a TypeScript quote and the on-chain result agree to the unit. `buy_tokens_exact_out_sol` inverts the formula: `cost = t * VQ / (VT - t) + 1`, `fee = ceil(cost * fee_bps / 10_000)`.
 
-Preconditions: not paused, curve not complete, `now >= sale_start_ts`, and an approved `Kyc` when `config.kyc_required`. A buy that would push `tokens_sold` past `supply_cap` fails with `CurveSoldOut`; there is no partial fill. Reaching the cap exactly sets `complete = true`.
+A buy that would push `tokens_sold` past `supply_cap` fails with `CurveSoldOut`; there is no partial fill. Reaching the cap exactly sets `complete = true` and the primary market closes for good (there is no sell to reopen it).
 
-Two signers are declared: `buyer` pays the SOL and receives the tokens; `payer` pays the rent of `buyer_ata` when it has to be created. They are the same key unless a sponsor pays the gas (2.10). `buy_tokens_usdc` has the same pair; there `buyer` only needs to sign (its USDC moves by token authority), and `payer` is the writable account that funds the ATA.
+Two signers: `buyer` pays the SOL and receives the tokens; `payer` pays the rent of `buyer_ata` and of the `SpendTracker` when they have to be created. They are the same key unless a sponsor pays the gas (3.11).
 
-### 2.2 Buy on the curve with USDC
+### 3.4 Buy on the curve with USDC
 
 ```
 price_e6 = sol_usd(config, price_update)           mode 0: config value, mode 1: Pyth
@@ -104,138 +142,141 @@ usdc_fee = usdc_in * quote.fee / lamports_equiv
 buyer_usdc --usdc_fee--> treasury_usdc
 buyer_usdc --usdc_in - usdc_fee--> usdc_vault (ATA of curve)
 curve: virtual_sol += quote.net_in, virtual_tokens -= out, real_usdc += usdc_net
-mint_to(buyer_ata, out)
+curve_vault --out--> buyer_ata
+spend.spent_lamports += lamports_equiv
 ```
 
-The curve is quoted in SOL. A USDC buy moves the virtual reserves as if the SOL equivalent had been paid, so the price buyers see is the same in both currencies. The USDC itself stays in `usdc_vault`; `real_sol_reserves` does not change.
+The curve is quoted in SOL. A USDC buy moves the virtual reserves as if the SOL equivalent had been paid, so the price buyers see is the same in both currencies, and it counts against the anti-whale cap at that equivalent. The USDC stays in `usdc_vault` until governance moves it.
 
-### 2.3 Sell on the curve
+### 3.5 No sells
+
+There is no sell instruction. The primary market only supports the price with buys; holders exit on the DEX after graduation. Consequently `real_sol_reserves` only grows until governance withdraws it (3.9), and `complete` never flips back.
+
+### 3.6 Anti-whale cap
+
+`SpendTracker` (`["spend", curve, wallet]`) counts the lamports a wallet put into one curve in the current 30-day period (`period = unix_time / 2_592_000`; a buy in a new period resets the counter). When `config.max_spend_per_period_lamports > 0`, every curve purchase (SOL buy, USDC buy at its SOL equivalent, the curve half of a hybrid perk) fails with `SpendCapExceeded` once the counter would exceed it. `0` disables the cap. The tracker is created on the wallet's first purchase, rent paid by `payer`.
+
+### 3.7 Blacklist
+
+Every wallet is allowed by default: identity verification happens at the Openfort / Sumsub layer, not on-chain. `set_blacklist(wallet, blocked)` lets the admin block a wallet. Buys and redeems take the wallet's `["blacklist", wallet]` PDA as a seeds-checked, possibly empty account: an empty account means never blacklisted; an existing one with `blocked == true` fails with `Blacklisted`. Because the seeds are checked, a client cannot substitute another wallet's (empty) entry.
+
+### 3.8 Perks
+
+A perk is priced either in tokens (`price_tokens > 0`) or in SOL (`price_lamports > 0`), never both (`InvalidPerkPrice`). Both modes mint a Metaplex Core asset into the perk's collection for the buyer, write a `Receipt`, and apply the fixed 80 / 20 split to every token involved. Gates shared by both: `!redeems_paused`, `perk.active`, `artist.active`, supply left, `now >= public_start_ts`, buyer not blacklisted.
+
+**Token-priced (`redeem_perk(nonce, max_paid)`)**
 
 ```
-gross = t * VQ / (VT + t); fee = ceil(gross * fee_bps / 10_000)
-require gross <= real_sol_reserves
-burn(seller_ata, t)                        signer: seller
-sol_vault --gross - fee--> seller          signer: sol_vault PDA
-sol_vault --fee--> treasury
-curve: virtual_sol -= gross, virtual_tokens += t, real_sol -= gross, tokens_sold -= t, complete = false
+require price_tokens <= max_paid                       (SlippageExceeded: caller's price cap)
+(burned, to_rewards) = split(price_tokens)             burned = floor(80 %), rewards = the rest
+burn(buyer_ata, burned)                                visible as a Burn in explorers
+buyer_ata --to_rewards--> rewards_vault
+mint Core asset; write Receipt{paid_tokens, burned, to_rewards}
+perk.sold += 1; curve.total_burned += burned; curve.rewards_accrued += to_rewards
 ```
 
-Sells pay out only from SOL that real SOL buys put in. A sell on a complete curve reopens it.
-
-Preconditions: not paused, and an approved `Kyc` for the seller when `config.kyc_required` (the same `check_kyc` the buys run). Sells create no accounts, so the seller is the only signer and there is no `payer`.
-
-### 2.4 Redeem a perk
+**SOL-priced, hybrid (`buy_perk_sol(nonce, max_lamports)`)**
 
 ```
-1. gate     !paused, perk.active, artist.active, supply left
-2. pass     resolve (pass_asset, pass_perk): both or neither
-            tier -> (discount_bps, early_secs, is_vip) from Config
-            vip_only  => require is_vip
-            require now >= public_start_ts - early_secs
-3. price    paid = price - floor(price * discount_bps / 10_000)   (discount only if perk.discount_eligible)
-            require paid <= max_paid                                   (SlippageExceeded: caller's price cap)
-            (burned, to_rewards, to_artist) = split(paid, perk.burn_bps, perk.rewards_bps)
-4. pay      burn(buyer_ata, burned)                       visible as a Burn in explorers
-            buyer_ata --to_rewards--> rewards_vault
-            buyer_ata --to_artist--> artist_vault
-5. mint     Core CreateV2(asset PDA, collection = perk.collection, owner = buyer,
-                          name = "{perk.name} #{edition}", uri = perk.uri,
-                          plugins = Attributes{kind, tier, artist, edition}, Edition{edition})
-            signers: asset PDA + artist PDA (collection update authority)
-6. record   Receipt{buyer, perk, artist, asset, edition, paid, burned, to_rewards, to_artist, discount_bps, pass_used, ts}
-            perk.sold = edition; curve.total_burned += burned; curve.rewards_accrued += to_rewards; artist.revenue_tokens += to_artist
+require price_lamports <= max_lamports
+also the buy gates: !buys_paused, !complete, curve open, spend cap on the curve half
+curve_half = price / 2; artist_half = price - curve_half
+q = buy_exact_in(VQ, VT, curve_half, fee_bps)          the curve leg is a normal buy
+require artist_reserve.amount >= q.tokens_out
+buyer --q.net_in--> sol_vault; buyer --q.fee--> treasury; buyer --artist_half--> artist.authority
+(b, r) = split(q.tokens_out)
+curve_vault:    burn b, --r--> rewards_vault             signer: curve PDA
+artist_reserve: burn b, --r--> rewards_vault             signer: curve PDA
+curve: apply_buy(net, q.tokens_out), real_sol += net, artist_reserve_used += q.tokens_out,
+       total_burned += 2b, rewards_accrued += 2r
+artist.revenue_lamports += artist_half
+mint Core asset; write Receipt{paid_lamports, tokens_from_curve, tokens_from_artist, burned, to_rewards, lamports_to_*}
 ```
 
-Default split: burn 80%, rewards 20%, artist 0%. Each perk sets its own `burn_bps` and `rewards_bps` within the protocol floors (2.9); the remainder goes to the artist. The edition number is `perk.sold + 1` and lives in the asset plugins and the receipt, not in the asset seed. The seed uses a client nonce so concurrent buyers do not collide and the client knows the asset address before confirmation. The asset's `Attributes` plugin carries `kind`, `tier`, `artist` and `edition`; the perk itself is identified by the collection the asset belongs to and by the receipt, not by an attribute. The collection PDA is `["collection", perk, collection_salt]`, salted by a `u64` the creator passes in `CreatePerkArgs`, so a perk whose collection CPI failed half-way can be recreated under a fresh address; `perk.collection` records the one in use and `redeem_perk` checks it with `has_one`. `max_paid` is the buyer's price cap: `set_perk` can change `price` at any time, and without the cap a buyer who signed against one quote could be charged another.
+Half of the SOL buys tokens on the curve (and moves its price like any buy); the other half pays the artist directly in SOL. The same number of tokens leaves the artist reserve. All of those tokens are burned / sent to rewards from the vaults themselves; the buyer never holds them, which is the same accounting as "sent to the buyer, then recovered" without the round trip or a buyer token account. The product spec's example (a 2 SOL drop, 100 copies) is a perk with `price_lamports = 2e9`, `max_supply = 100`.
 
-Signers: `buyer` (spends the tokens, receives the asset) and `payer` (asset rent, receipt rent and the Metaplex Core protocol fee). They are the same key in the self-paid case; a sponsor supplies `payer` (2.10).
+**Edition and metadata.** The edition number is `perk.sold + 1` and lives in the asset's `Edition` plugin and the receipt. The asset's `Attributes` plugin carries `kind`, `tier`, `artist` and `edition`; the program does not interpret the perk, the web app does. The asset seed uses a client nonce so concurrent buyers do not collide and the client knows the asset address before confirmation. The collection PDA is `["collection", perk, collection_salt]`, salted by a `u64` the creator passes in `CreatePerkArgs`, so a perk whose collection CPI failed half-way can be recreated under a fresh address; `perk.collection` records the one in use.
 
-### 2.5 Pass benefits enforced on-chain
+### 3.9 Governance (weighted multisig)
 
-MoOG Passes are perks of kind `Pass` with tier 0 (Standard) or 1 (VIP). Their collections are ordinary perk collections. On redeem of any other perk, the buyer may present a pass:
+Members are `Member` PDAs with a role: admin (weight 1) or super-admin (weight 2); `role == 0` is a removed member. `Config.total_weight` is the sum of live weights. `initialize_config` seats the admin key as the founding super-admin, so there is always a voter.
 
-| Check                                                             | Error                                                    |
-| ----------------------------------------------------------------- | -------------------------------------------------------- |
-| `pass_perk.kind == Pass`                                          | `PassMismatch`                                           |
-| `pass_asset.owner == buyer`                                       | `InvalidPass`                                            |
-| `pass_asset.update_authority == Collection(pass_perk.collection)` | `PassMismatch` (`InvalidPass` if not a collection asset) |
-| \1                                                                |
-| `pass_perk.active`                                                | `PerkInactive` (a retired pass tier grants nothing)      |
+```
+create_proposal(args)      by a member; records the proposer's approval; expires at now + proposal_ttl_secs
+approve_proposal           by a member; one Approval PDA per member per proposal (a second one fails: account exists)
+execute_*                  by any member once approved_weight * 100 > total_weight * 51 and before expiry
+cancel_proposal            by the proposer or any super-admin
+```
 
-Benefits come from `Config` (defaults: Standard 5% / 24 h, VIP 15% / 72 h) and apply as discount (when `perk.discount_eligible`), early access (`public_start_ts - early_secs`) and VIP-only gating (`perk.vip_only`). Benefits follow the asset: whoever owns the pass now gets them. `receipt.pass_used` records which pass was presented.
+| Proposal kind   | Payload                                                              | Executor                                                                                                                                                                                   |
+| --------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `VaultTransfer` | `curve` (zero for treasury vaults), `vault`, `destination`, `amount` | `execute_token_transfer` for `artist_reserve`, `mostro_reserve`, `dex_reserve`, `rewards`, the curve USDC vault and `treasury_usdc`; `execute_sol_transfer` for `sol_vault` and `treasury` |
+| `SetMember`     | `wallet`, `role` (0 removes)                                         | `execute_set_member`: updates `total_weight` and `member_count`; refuses to drop the total to 0 (`LastMember`)                                                                             |
 
-### 2.6 KYC attestation gate
+The executor recomputes the source account from the vault kind and the proposal's curve (`ProposalMismatch` otherwise), so the only thing a proposal can move is the named vault to the named destination. SOL vaults keep their rent floor. `execute_sol_transfer` from `sol_vault` also decrements `curve.real_sol_reserves`.
 
-`set_kyc(wallet, approved, country)` lets the admin write a `Kyc` PDA after an off-chain identity check. When `config.kyc_required` is true, every curve buy requires the buyer's `Kyc` with `approved == true`, and every curve sell requires the seller's. The gate is symmetric so a wallet that cannot buy cannot exit either; otherwise an unverified wallet could receive tokens by transfer and cash out. Redeems are not gated. The flag is **on** on devnet since the 2026-10-09 upgrade (see 2.11); flipping it is one `set_config`, and every wallet that buys or sells there needs a `set_kyc` first.
+The threshold is dynamic: with 5 super-admins and 5 admins (total 15) a proposal needs weight 8; with the founding super-admin alone (total 2) it passes with that single vote, which is how the first members are appointed. Approvals are weighed when cast; removing a member later does not retract its vote on open proposals (cancel them if that matters).
 
-### 2.7 Admin cool-off
+Any member can pull the circuit breaker (`emergency_pause`: `buys_paused = redeems_paused = true`); only the admin resumes, through `set_config`.
 
-`propose_admin(new)` records `pending_admin` and `admin_transfer_ready_ts = now + admin_cooloff_secs`. `accept_admin` must be signed by the pending admin after that time. `cancel_admin_transfer` clears it. `admin_cooloff_secs` is set once in `initialize_config`. All other `set_config` changes apply immediately.
+### 3.10 The operator key
 
-### 2.8 Price modes
+`Config.admin` is the hot key for day-to-day operations: `set_config` (fees, price source and admin price, both circuit breakers, launch cool-down, anti-whale cap, proposal TTL), `set_blacklist`, `create_artist`, `create_curve`, Pass perks, and `set_artist` / `set_perk` / `fulfill_receipt` alongside the artist. It cannot move tokens out of any vault or SOL out of the treasury: those balances only move through executed proposals. `propose_admin(new)` records `pending_admin` and `admin_transfer_ready_ts = now + admin_cooloff_secs`; `accept_admin` must be signed by the pending admin after that time; `cancel_admin_transfer` clears it.
+
+### 3.11 Payer / buyer split (gas sponsorship)
+
+`buy_tokens_sol`, `buy_tokens_exact_out_sol`, `buy_tokens_usdc`, `redeem_perk` and `buy_perk_sol` declare two signers: `payer` (first) and `buyer`. `payer` is the `payer =` of every `init` / `init_if_needed` in those instructions (`buyer_ata`, `spend`, `receipt`) and the `.payer()` of the Core `CreateV2` CPI, so it carries rent and the Core protocol fee. Everything else is tied to `buyer`: the lamports or USDC debited, the token account authority, the asset owner, the receipt's `buyer`, the blacklist and spend lookups. In the self-paid case the client passes the same key twice and the transaction has one signature. A sponsor (Openfort's embedded wallet gas policy, or a Kora paymaster) passes its funded key as `payer`, is the transaction fee payer, and co-signs after the buyer. The program only verifies that `payer` signed; what the sponsor agrees to pay for is the sponsor's policy.
+
+### 3.12 Price modes
 
 | `config.price_mode` | Source                                                 | Checks                                                                                                                                                                                                                                                                   |
 | ------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0 (admin)           | `config.sol_usd_price_e6`, written by `set_config`     | `> 0`; `now - config.price_updated_ts <= admin_price_max_age_secs` (own limit, 86,400 s on devnet: a forgotten admin price expires instead of pricing USDC buys forever)                                                                                                 |
+| 0 (admin)           | `config.sol_usd_price_e6`, written by `set_config`     | `> 0`; `now - config.price_updated_ts <= admin_price_max_age_secs`                                                                                                                                                                                                       |
 | 1 (Pyth)            | the `price_update` account passed to `buy_tokens_usdc` | key == `config.pyth_sol_usd_account`; owner == Pyth receiver program; verification level `Full`; feed id == `config.pyth_feed_id`; `price > 0`; `now - publish_time <= max_price_age_secs`; `conf * 10_000 <= price * 200` (confidence within 2%, else `PriceUncertain`) |
 
-The two modes have separate staleness limits: `admin_price_max_age_secs` for the admin value (set in `initialize_config`, changed with `set_config`) and `max_price_age_secs` for the Pyth publish time (300 s on devnet). `scale_to_e6` computes `10^(6 + expo)` with `checked_pow` and returns `MathOverflow` instead of panicking on an absurd exponent.
+`PriceUpdateV2` is decoded by hand at fixed offsets (price at 73, conf at 81, exponent at 89, publish time at 93) instead of through `pyth-solana-receiver-sdk`, because the SDK versions that build with Anchor 0.32 conflict with `mpl-core` in the same lockfile. The offsets hold only for the `Full` verification level, which is the only one accepted.
 
-`PriceUpdateV2` is decoded by hand at fixed offsets (price at 73, conf at 81, exponent at 89, publish time at 93) instead of through `pyth-solana-receiver-sdk`. Reason: the SDK versions that build with Anchor 0.32 conflict with `mpl-core` in the same lockfile, and the next major requires Anchor 1.x. The offsets hold only for the `Full` verification level, which is the only one accepted. The `price_update` account is part of the instruction from the first deploy so switching to mode 1 does not change the account list.
+## 4. Who may do what
 
-### 2.9 Who may create and edit perks; where artist revenue can go
+| Action                                                                                                   | Signer                               | Error otherwise                                                         |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
+| `initialize_config`                                                                                      | program upgrade authority            | `Unauthorized`                                                          |
+| `set_config`, `set_blacklist`, `create_artist`, `create_curve`, `propose_admin`, `cancel_admin_transfer` | `config.admin`                       | `Unauthorized`                                                          |
+| `create_perk` / `set_perk` with `kind == Pass`                                                           | `config.admin`                       | `Unauthorized`                                                          |
+| `create_perk` / `set_perk` other kinds, `fulfill_receipt`                                                | `artist.authority` or `config.admin` | `Unauthorized`                                                          |
+| `set_artist` with `authority` set                                                                        | current `artist.authority` only      | `Unauthorized`                                                          |
+| `create_proposal`, `approve_proposal`, `execute_*`, `emergency_pause`                                    | any member (`role != 0`)             | `NotAMember` (or `AccountNotInitialized` when the wallet never was one) |
+| `cancel_proposal`                                                                                        | the proposer or a super-admin        | `Unauthorized`                                                          |
+| moving any vault or treasury balance                                                                     | an executed proposal                 | no instruction exists                                                   |
 
-| Rule                                                                                                                | Where                                   | Error                  |
-| ------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------- |
-| `create_perk` with `kind == Pass` requires `signer == config.admin`                                                 | `perks.rs::create_perk`                 | `Unauthorized`         |
-| Every other kind accepts `artist.authority` or `config.admin`                                                       | `ManagePerk` / `CreatePerk` constraints | `Unauthorized`         |
-| `burn_bps + rewards_bps <= 10_000`, `burn_bps >= config.min_burn_bps`, `rewards_bps >= config.min_rewards_bps`      | `create_perk` and `set_perk`            | `InvalidBps`           |
-| \1                                                                                                                  |
-| `set_perk` on a perk with `kind == Pass` requires `signer == config.admin`                                          | `perks.rs::set_perk`                    | `Unauthorized`         |
-| `set_artist` with `authority` set requires `signer == artist.authority` (admin may change name / uri / active only) | `artist.rs::set_artist`                 | `Unauthorized`         |
-| `initialize_config` funds `treasury` with `Rent::minimum_balance(0)`; `withdraw_treasury_sol` keeps that floor      | `config.rs`                             | `InsufficientReserves` |
+Passes are a platform product, so only the protocol issues them; an artist cannot mint a "Mostro Pass". The admin cannot reach an artist's SOL income by rotating `artist.authority`, because only the current authority can hand an artist over. The treasury and every vault keep their rent-exempt floor so no PDA can be garbage-collected while funds still flow in.
 
-Passes grant protocol-wide benefits (discount, early access, VIP gating on every artist's perks), so only the protocol can issue them; an artist cannot mint a "pass" that unlocks another artist's drops. The floors stop an artist from setting a perk to 0% burn / 0% rewards and keeping the whole payment: `min_burn_bps` and `min_rewards_bps` are set in `initialize_config` (0 / 0 on devnet) and changed with `set_config`. They are checked when a perk is created or edited, not retroactively on existing perks. Artist revenue in `artist_vault` is reachable by the artist alone; the admin's reach ends at `treasury` and `treasury_usdc`, and the admin cannot get there by rotating `artist.authority` either, because only the current authority can hand an artist over. Pass perks are admin-owned end to end: created and edited by the admin only. The treasury always keeps its rent-exempt floor so the PDA can never be garbage-collected while fees are still flowing in.
+## 5. Limitations (current code)
 
-### 2.10 Payer / buyer split (gas sponsorship)
-
-`buy_tokens_sol`, `buy_tokens_exact_out_sol`, `buy_tokens_usdc` and `redeem_perk` declare two signers: `payer` (first) and `buyer`. `payer` is the `payer =` of every `init` / `init_if_needed` in those instructions (`buyer_ata`, `receipt`) and the `.payer()` of the Core `CreateV2` CPI, so it carries rent and the Core protocol fee. Everything else is tied to `buyer`: the lamports or USDC debited, the token account authority, the asset owner, the receipt's `buyer`, the KYC lookup (`["kyc", buyer]`) and the pass ownership check.
-
-In the self-paid case the client passes the same key twice and the transaction has one signature. A sponsor (Openfort's embedded wallet gas policy, or a Kora paymaster) passes its funded key as `payer`, is the transaction fee payer, and co-signs after the buyer. The program only verifies that `payer` signed; what the sponsor agrees to pay for is the sponsor's policy, so it has to inspect the transaction before signing. `sell_tokens` creates nothing and has no `payer`.
-
-### 2.11 Regulatory design, and "can I get my money back?"
-
-What the KYC gate covers: the primary on-ramp and off-ramp, which are the curve buys (`buy_tokens_sol`, `buy_tokens_exact_out_sol`, `buy_tokens_usdc`) and the curve sells (`sell_tokens`). When `config.kyc_required` is on (it is on devnet), every one of those requires an admin-written `Kyc` with `approved == true` for the signing wallet. What it does not cover: plain SPL transfers of `$MOST` between wallets (the token program does not call us), `redeem_perk` (spending tokens on a perk is not an exit to fiat), and `withdraw_artist_vault` (the artist is onboarded by the admin in `create_artist`). `paused` halts buys, sells and redeems in one `set_config`; it does not freeze token balances or Core assets. Admin powers are listed in `SECURITY.md`: fee, pause, price source and admin price, pass benefits, split floors, KYC writes, treasury withdrawals, artist and perk onboarding; not artist vaults, not user wallets. Nothing personal is stored on-chain: a `Kyc` record is the wallet, an approved flag, a 2-letter country code and a timestamp; the identity check and its documents stay with the off-chain provider. The country is recorded but not enforced yet (no geo-blocking rule reads it).
-
-Can a buyer get their money back? Yes, through `sell_tokens`: it burns the tokens and pays SOL from the curve's real reserves at the current curve price minus the protocol fee, to a KYC-approved wallet, as long as `real_sol_reserves` covers the payout. It is a market exit, not a refund: the price is whatever the curve says at that moment, and tokens spent on a perk are gone (the perk and its Core asset are what the buyer got). Two honest caveats: tokens bought with USDC raised the curve price without adding SOL to the reserves, so they can be sold only insofar as other SOL buys backed the pool (`InsufficientReserves` otherwise), and there is no USDC sell leg yet (roadmap item 3).
-
-## 3. Limitations (current code)
-
-- **USDC buys are not sellable back.** Sells pay only from `real_sol_reserves`. USDC paid into `usdc_vault` sits there; no instruction moves it out yet. A curve bought mostly with USDC can refuse sells with `InsufficientReserves`.
-- **Burning does not move the price.** The curve prices on virtual reserves. A redeem burns tokens from the buyer's wallet: `mint.supply` and market cap drop, the spot price does not. `curve.tokens_sold` is not reduced by redeem burns either, so the supply cap counts tokens ever sold on the curve.
-- **The rewards vault has no spend path.** `rewards_vault` accrues 20% of every redeem; a `claim_rewards` instruction does not exist yet.
-- **Single admin hot key on devnet.** The deployer's keypair is the upgrade authority, the `Config.admin`, and the only signer that can withdraw the treasury. See `SECURITY.md`.
-- **Admin-set price in mode 0.** The admin sets the SOL/USD conversion used for USDC buys; it expires after `admin_price_max_age_secs` (86,400 s on devnet; USDC buys fail with `PriceTooOld` until `set_config` refreshes it), which bounds staleness but not the value. Mode 1 (Pyth) removes that trust and additionally rejects feeds whose confidence exceeds 2% of the price.
-- **Token metadata is a separate admin step.** `create_curve` stores name, symbol and URI in the `Curve` account only; wallets show "Unknown Token" until the admin runs `set_curve_metadata`, which creates the Metaplex Token Metadata account (`["metadata", metaqbx…, mint]`) from those fields with the `curve` PDA as mint and update authority. It succeeds once per mint; the seed runs it after `create_curve`.
+- **Burning does not move the price.** The curve prices on virtual reserves. A redeem burns tokens: `mint.supply` and market cap drop, the spot price does not. Hybrid perks do move the price, through their curve leg.
+- **The rewards vault has no distribution logic.** `rewards_vault` accrues 20 % of every redeem; governance can move it (`VAULT_REWARDS`), but there is no holder-facing `claim_rewards` yet.
+- **USDC paid on the curve does not back anything.** It sits in `usdc_vault` until governance moves it. Since there are no sells, nothing needs to be backed; the DEX seeding at graduation is an off-chain operation using the reserves governance releases.
+- **Graduation is manual.** `complete = true` closes the curve; moving `dex_reserve` and `sol_vault` into a DEX pool is a governance proposal plus an off-chain pool creation. The "similar logic on the DEX" for hybrid perks after graduation is not implemented.
+- **Launch cool-down is per-token at creation.** Changing `launch_cooldown_secs` affects tokens created afterwards.
+- **Spend cap is per curve.** A wallet's cap is counted per artist token, which matches "per artist and per month"; it is not a global cap across artists.
+- **Approvals do not follow membership changes.** A removed member's approval keeps counting on proposals it already approved; the proposal must be cancelled to discard it. The dynamic threshold, however, always uses the live total weight.
+- **Admin-set price in mode 0.** The admin sets the SOL/USD conversion used for USDC buys; it expires after `admin_price_max_age_secs`, which bounds staleness but not the value. Mode 1 (Pyth) removes that trust.
 - **One URI per perk.** Every asset of a perk points at `perk.uri`; editions differ only by name and attributes.
-- **Metadata URIs are placeholders.** The seeded `https://mostro.app/metadata/...` URIs return 404 until the team hosts the JSON and images; wallets show the on-chain name and no picture. `set_perk(uri)` and `set_curve_metadata` (for a fresh mint) fix them without redeploying.
-- **`set_perk(max_supply)` does not update the collection.** The Core collection's `MasterEdition` plugin keeps the `max_supply` given at `create_perk`; the program enforces the new value from the `Perk` account, but Core-aware explorers display the original.
-- **The collection salt is not stored.** `perk.collection` is, so reads are unaffected, but re-deriving a collection address off-chain needs the salt the creator used (the devnet seed records it in `shared/addresses/<cluster>.json`).
-- **Admin-only onboarding.** `create_curve` and `create_artist` require the admin. Artists then manage their own perks with their `authority` wallet, except Pass perks, which only the admin creates.
-- **`set_config` is immediate.** Only the admin transfer has a cool-off. Fee, pause, price mode, pass benefits and the split floors change in one transaction.
-- **Split floors are not retroactive.** Raising `min_burn_bps` / `min_rewards_bps` constrains future `create_perk` / `set_perk` calls; perks created under lower floors keep their split until edited.
-- **Sponsorship is a signer, not a policy.** The `payer` split lets a sponsor pay rent and Core fees, but the program does not cap what a sponsor can be charged nor whitelist sponsors; that logic lives in the sponsor's signing service.
+- **`set_perk(max_supply)` does not update the collection.** The Core collection's `MasterEdition` plugin keeps the `max_supply` given at `create_perk`; the program enforces the new value from the `Perk` account.
+- **The collection salt is not stored.** `perk.collection` is, so reads are unaffected, but re-deriving a collection address off-chain needs the salt the creator used.
+- **Admin-only onboarding.** `create_artist` and `create_curve` require the admin.
+- **`set_config` is immediate.** Only the admin transfer has a cool-off. Fee, price mode, breakers, cap and cool-down change in one transaction.
 - **No partial fills on the cap.** A buy that crosses `supply_cap` fails instead of filling the remainder.
+- **Program size.** The `.so` is about 899 KB; the devnet program account reserves 800,000 bytes, so the next upgrade needs `solana program extend` first (see the README).
 
-## 4. Roadmap
+## 6. Roadmap
 
 Ordered by what unblocks the most:
 
-1. Move the admin and the upgrade authority to a Squads multisig; add a timelock for `set_config`.
+1. Move the upgrade authority itself under the multisig (today it is the deployer key; the program's own multisig governs vaults, not upgrades).
 2. `claim_rewards`: distribute `rewards_vault` to holders or pass owners (design open).
-3. A path for the USDC in `usdc_vault`: a USDC sell leg priced through the same SOL/USD source, or an admin sweep into SOL reserves.
-4. An `update_curve_metadata` path (`set_curve_metadata` only creates; a URI change in `Curve` does not propagate yet).
-5. Per-edition metadata URIs and `update_perk_asset` for fulfilled merch.
-6. Permissionless artist onboarding with a creation fee.
-7. Migrate to Anchor 1.x once `mpl-core` ships an `anchor-1` feature; generate a kit-native client with Codama.
-8. External security audit before any mainnet deploy.
+3. Graduation instruction: move `dex_reserve` + `sol_vault` into a DEX pool in one governed step; hybrid perks sourcing from the DEX after graduation.
+4. `update_perk_asset` / per-edition metadata URIs for fulfilled merch; `update_curve_metadata`.
+5. Permissionless artist onboarding with a creation fee.
+6. Migrate to Anchor 1.x once `mpl-core` ships an `anchor-1` feature; generate a kit-native client with Codama.
+7. External security audit before any mainnet deploy.

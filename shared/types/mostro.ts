@@ -38,12 +38,359 @@ export type Mostro = {
          args: [];
       },
       {
+         name: "approveProposal";
+         discriminator: [136, 108, 102, 85, 98, 114, 7, 147];
+         accounts: [
+            {
+               name: "memberWallet";
+               writable: true;
+               signer: true;
+            },
+            {
+               name: "config";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 111, 110, 102, 105, 103];
+                     },
+                  ];
+               };
+            },
+            {
+               name: "member";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 109, 98, 101, 114];
+                     },
+                     {
+                        kind: "account";
+                        path: "memberWallet";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "proposal";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [112, 114, 111, 112, 111, 115, 97, 108];
+                     },
+                     {
+                        kind: "account";
+                        path: "proposal.index";
+                        account: "proposal";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "approval";
+               docs: ["One approval per member per proposal: a second call fails because the PDA exists."];
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [97, 112, 112, 114, 111, 118, 97, 108];
+                     },
+                     {
+                        kind: "account";
+                        path: "proposal";
+                     },
+                     {
+                        kind: "account";
+                        path: "memberWallet";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "systemProgram";
+               address: "11111111111111111111111111111111";
+            },
+         ];
+         args: [];
+      },
+      {
+         name: "buyPerkSol";
+         discriminator: [110, 69, 112, 133, 86, 27, 240, 130];
+         accounts: [
+            {
+               name: "payer";
+               docs: ["Pays rent and the Core protocol fee. Usually the buyer; can be a sponsor."];
+               writable: true;
+               signer: true;
+            },
+            {
+               name: "buyer";
+               docs: ["Pays the SOL and receives the asset."];
+               writable: true;
+               signer: true;
+            },
+            {
+               name: "config";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 111, 110, 102, 105, 103];
+                     },
+                  ];
+               };
+            },
+            {
+               name: "artist";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [97, 114, 116, 105, 115, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "artist.index";
+                        account: "artist";
+                     },
+                  ];
+               };
+               relations: ["perk"];
+            },
+            {
+               name: "artistAuthority";
+               writable: true;
+            },
+            {
+               name: "perk";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [112, 101, 114, 107];
+                     },
+                     {
+                        kind: "account";
+                        path: "artist";
+                     },
+                     {
+                        kind: "account";
+                        path: "perk.index";
+                        account: "perk";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "curve";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 117, 114, 118, 101];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve.index";
+                        account: "curve";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "mint";
+               writable: true;
+               relations: ["perk", "curve"];
+            },
+            {
+               name: "curveVault";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 117, 114, 118, 101, 95, 118, 97, 117, 108, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "artistReserve";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [97, 114, 116, 105, 115, 116, 95, 114, 101, 115, 101, 114, 118, 101];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "rewardsVault";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [114, 101, 119, 97, 114, 100, 115];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "solVault";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [115, 111, 108, 95, 118, 97, 117, 108, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "treasury";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [116, 114, 101, 97, 115, 117, 114, 121];
+                     },
+                  ];
+               };
+            },
+            {
+               name: "spend";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [115, 112, 101, 110, 100];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                     {
+                        kind: "account";
+                        path: "buyer";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "blacklistEntry";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [98, 108, 97, 99, 107, 108, 105, 115, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "buyer";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "collection";
+               writable: true;
+               relations: ["perk"];
+            },
+            {
+               name: "asset";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [97, 115, 115, 101, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "perk";
+                     },
+                     {
+                        kind: "arg";
+                        path: "nonce";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "receipt";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [114, 101, 99, 101, 105, 112, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "asset";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "mplCoreProgram";
+               address: "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d";
+            },
+            {
+               name: "tokenProgram";
+            },
+            {
+               name: "systemProgram";
+               address: "11111111111111111111111111111111";
+            },
+         ];
+         args: [
+            {
+               name: "nonce";
+               type: "u64";
+            },
+            {
+               name: "maxLamports";
+               type: "u64";
+            },
+         ];
+      },
+      {
          name: "buyTokensExactOutSol";
          discriminator: [160, 176, 95, 170, 229, 24, 26, 8];
          accounts: [
             {
                name: "payer";
-               docs: ["Pays rent for the buyer's token account. Usually the buyer; can be a sponsor."];
+               docs: ["Pays rent for the buyer's token account and spend tracker. Usually the buyer; can be a sponsor."];
                writable: true;
                signer: true;
             },
@@ -83,8 +430,23 @@ export type Mostro = {
             },
             {
                name: "mint";
-               writable: true;
                relations: ["curve"];
+            },
+            {
+               name: "curveVault";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 117, 114, 118, 101, 95, 118, 97, 117, 108, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
             },
             {
                name: "solVault";
@@ -139,9 +501,40 @@ export type Mostro = {
                };
             },
             {
-               name: "kyc";
-               docs: ["Optional KYC record; `check_kyc` verifies it belongs to the buyer. No seeds so clients can omit it."];
-               optional: true;
+               name: "spend";
+               docs: ["Anti-whale counter for this buyer on this curve."];
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [115, 112, 101, 110, 100];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                     {
+                        kind: "account";
+                        path: "buyer";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "blacklistEntry";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [98, 108, 97, 99, 107, 108, 105, 115, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "buyer";
+                     },
+                  ];
+               };
             },
             {
                name: "tokenProgram";
@@ -172,7 +565,7 @@ export type Mostro = {
          accounts: [
             {
                name: "payer";
-               docs: ["Pays rent for the buyer's token account. Usually the buyer; can be a sponsor."];
+               docs: ["Pays rent for the buyer's token account and spend tracker. Usually the buyer; can be a sponsor."];
                writable: true;
                signer: true;
             },
@@ -212,8 +605,23 @@ export type Mostro = {
             },
             {
                name: "mint";
-               writable: true;
                relations: ["curve"];
+            },
+            {
+               name: "curveVault";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 117, 114, 118, 101, 95, 118, 97, 117, 108, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
             },
             {
                name: "solVault";
@@ -268,9 +676,40 @@ export type Mostro = {
                };
             },
             {
-               name: "kyc";
-               docs: ["Optional KYC record; `check_kyc` verifies it belongs to the buyer. No seeds so clients can omit it."];
-               optional: true;
+               name: "spend";
+               docs: ["Anti-whale counter for this buyer on this curve."];
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [115, 112, 101, 110, 100];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                     {
+                        kind: "account";
+                        path: "buyer";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "blacklistEntry";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [98, 108, 97, 99, 107, 108, 105, 115, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "buyer";
+                     },
+                  ];
+               };
             },
             {
                name: "tokenProgram";
@@ -301,7 +740,7 @@ export type Mostro = {
          accounts: [
             {
                name: "payer";
-               docs: ["Pays rent for the buyer's token account. Usually the buyer; can be a sponsor."];
+               docs: ["Pays rent for the buyer's token account and spend tracker. Usually the buyer; can be a sponsor."];
                writable: true;
                signer: true;
             },
@@ -340,8 +779,23 @@ export type Mostro = {
             },
             {
                name: "mint";
-               writable: true;
                relations: ["curve"];
+            },
+            {
+               name: "curveVault";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 117, 114, 118, 101, 95, 118, 97, 117, 108, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
             },
             {
                name: "usdcMint";
@@ -424,12 +878,42 @@ export type Mostro = {
                };
             },
             {
-               name: "priceUpdate";
+               name: "spend";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [115, 112, 101, 110, 100];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                     {
+                        kind: "account";
+                        path: "buyer";
+                     },
+                  ];
+               };
             },
             {
-               name: "kyc";
-               docs: ["Optional KYC record; `check_kyc` verifies it belongs to the buyer. No seeds so clients can omit it."];
-               optional: true;
+               name: "blacklistEntry";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [98, 108, 97, 99, 107, 108, 105, 115, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "buyer";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "priceUpdate";
             },
             {
                name: "tokenProgram";
@@ -474,6 +958,49 @@ export type Mostro = {
                      {
                         kind: "const";
                         value: [99, 111, 110, 102, 105, 103];
+                     },
+                  ];
+               };
+            },
+         ];
+         args: [];
+      },
+      {
+         name: "cancelProposal";
+         discriminator: [106, 74, 128, 146, 19, 65, 39, 23];
+         accounts: [
+            {
+               name: "memberWallet";
+               signer: true;
+            },
+            {
+               name: "member";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 109, 98, 101, 114];
+                     },
+                     {
+                        kind: "account";
+                        path: "memberWallet";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "proposal";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [112, 114, 111, 112, 111, 115, 97, 108];
+                     },
+                     {
+                        kind: "account";
+                        path: "proposal.index";
+                        account: "proposal";
                      },
                   ];
                };
@@ -563,6 +1090,23 @@ export type Mostro = {
                };
             },
             {
+               name: "artist";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [97, 114, 116, 105, 115, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "artist.index";
+                        account: "artist";
+                     },
+                  ];
+               };
+            },
+            {
                name: "curve";
                writable: true;
                pda: {
@@ -597,13 +1141,65 @@ export type Mostro = {
                };
             },
             {
-               name: "solVault";
+               name: "curveVault";
+               docs: ["Hot vault: the 28 % sold on the curve."];
                writable: true;
                pda: {
                   seeds: [
                      {
                         kind: "const";
-                        value: [115, 111, 108, 95, 118, 97, 117, 108, 116];
+                        value: [99, 117, 114, 118, 101, 95, 118, 97, 117, 108, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "artistReserve";
+               docs: ["Cold vault: the artist's 50 %."];
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [97, 114, 116, 105, 115, 116, 95, 114, 101, 115, 101, 114, 118, 101];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "mostroReserve";
+               docs: ["Cold vault: Mostro's 15 %."];
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 111, 115, 116, 114, 111, 95, 114, 101, 115, 101, 114, 118, 101];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "dexReserve";
+               docs: ["Cold vault: the 7 % DEX liquidity reserve."];
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [100, 101, 120, 95, 114, 101, 115, 101, 114, 118, 101];
                      },
                      {
                         kind: "account";
@@ -614,12 +1210,29 @@ export type Mostro = {
             },
             {
                name: "rewardsVault";
+               docs: ["20 % of every redeem lands here."];
                writable: true;
                pda: {
                   seeds: [
                      {
                         kind: "const";
                         value: [114, 101, 119, 97, 114, 100, 115];
+                     },
+                     {
+                        kind: "account";
+                        path: "curve";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "solVault";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [115, 111, 108, 95, 118, 97, 117, 108, 116];
                      },
                      {
                         kind: "account";
@@ -656,6 +1269,30 @@ export type Mostro = {
                };
             },
             {
+               name: "metadata";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 116, 97, 100, 97, 116, 97];
+                     },
+                     {
+                        kind: "account";
+                        path: "tokenMetadataProgram";
+                     },
+                     {
+                        kind: "account";
+                        path: "mint";
+                     },
+                  ];
+                  program: {
+                     kind: "account";
+                     path: "tokenMetadataProgram";
+                  };
+               };
+            },
+            {
                name: "tokenProgram";
             },
             {
@@ -666,8 +1303,16 @@ export type Mostro = {
                address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
             },
             {
+               name: "tokenMetadataProgram";
+               address: "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
+            },
+            {
                name: "systemProgram";
                address: "11111111111111111111111111111111";
+            },
+            {
+               name: "rent";
+               address: "SysvarRent111111111111111111111111111111111";
             },
          ];
          args: [
@@ -720,7 +1365,7 @@ export type Mostro = {
             },
             {
                name: "curve";
-               docs: ["The curve mint the perk is priced in."];
+               docs: ["The artist's curve; the perk is tied to its mint."];
             },
             {
                name: "mint";
@@ -767,32 +1412,8 @@ export type Mostro = {
                };
             },
             {
-               name: "artistVault";
-               docs: ["Artist vault for this mint, created lazily here so `redeem_perk` never has to."];
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [97, 114, 116, 105, 115, 116, 95, 118, 97, 117, 108, 116];
-                     },
-                     {
-                        kind: "account";
-                        path: "artist";
-                     },
-                     {
-                        kind: "account";
-                        path: "mint";
-                     },
-                  ];
-               };
-            },
-            {
                name: "mplCoreProgram";
                address: "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d";
-            },
-            {
-               name: "tokenProgram";
             },
             {
                name: "systemProgram";
@@ -809,6 +1430,358 @@ export type Mostro = {
                };
             },
          ];
+      },
+      {
+         name: "createProposal";
+         discriminator: [132, 116, 68, 174, 216, 160, 198, 22];
+         accounts: [
+            {
+               name: "proposer";
+               writable: true;
+               signer: true;
+            },
+            {
+               name: "config";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 111, 110, 102, 105, 103];
+                     },
+                  ];
+               };
+            },
+            {
+               name: "member";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 109, 98, 101, 114];
+                     },
+                     {
+                        kind: "account";
+                        path: "proposer";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "proposal";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [112, 114, 111, 112, 111, 115, 97, 108];
+                     },
+                     {
+                        kind: "account";
+                        path: "config.proposal_count";
+                        account: "config";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "approval";
+               docs: ["The proposer's own approval, recorded at creation."];
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [97, 112, 112, 114, 111, 118, 97, 108];
+                     },
+                     {
+                        kind: "account";
+                        path: "proposal";
+                     },
+                     {
+                        kind: "account";
+                        path: "proposer";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "systemProgram";
+               address: "11111111111111111111111111111111";
+            },
+         ];
+         args: [
+            {
+               name: "args";
+               type: {
+                  defined: {
+                     name: "createProposalArgs";
+                  };
+               };
+            },
+         ];
+      },
+      {
+         name: "emergencyPause";
+         discriminator: [21, 143, 27, 142, 200, 181, 210, 255];
+         accounts: [
+            {
+               name: "memberWallet";
+               signer: true;
+            },
+            {
+               name: "config";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 111, 110, 102, 105, 103];
+                     },
+                  ];
+               };
+            },
+            {
+               name: "member";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 109, 98, 101, 114];
+                     },
+                     {
+                        kind: "account";
+                        path: "memberWallet";
+                     },
+                  ];
+               };
+            },
+         ];
+         args: [];
+      },
+      {
+         name: "executeSetMember";
+         discriminator: [114, 232, 28, 211, 69, 164, 44, 170];
+         accounts: [
+            {
+               name: "memberWallet";
+               writable: true;
+               signer: true;
+            },
+            {
+               name: "config";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 111, 110, 102, 105, 103];
+                     },
+                  ];
+               };
+            },
+            {
+               name: "member";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 109, 98, 101, 114];
+                     },
+                     {
+                        kind: "account";
+                        path: "memberWallet";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "proposal";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [112, 114, 111, 112, 111, 115, 97, 108];
+                     },
+                     {
+                        kind: "account";
+                        path: "proposal.index";
+                        account: "proposal";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "target";
+               docs: ["The member record of `proposal.wallet`, created on first appointment."];
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 109, 98, 101, 114];
+                     },
+                     {
+                        kind: "account";
+                        path: "proposal.wallet";
+                        account: "proposal";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "systemProgram";
+               address: "11111111111111111111111111111111";
+            },
+         ];
+         args: [];
+      },
+      {
+         name: "executeSolTransfer";
+         discriminator: [201, 199, 156, 78, 98, 2, 59, 68];
+         accounts: [
+            {
+               name: "memberWallet";
+               signer: true;
+            },
+            {
+               name: "config";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 111, 110, 102, 105, 103];
+                     },
+                  ];
+               };
+            },
+            {
+               name: "member";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 109, 98, 101, 114];
+                     },
+                     {
+                        kind: "account";
+                        path: "memberWallet";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "proposal";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [112, 114, 111, 112, 111, 115, 97, 108];
+                     },
+                     {
+                        kind: "account";
+                        path: "proposal.index";
+                        account: "proposal";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "curve";
+               docs: ["Required for `VAULT_SOL` (`proposal.curve`), omitted for `VAULT_TREASURY_SOL`."];
+               writable: true;
+               optional: true;
+            },
+            {
+               name: "source";
+               writable: true;
+            },
+            {
+               name: "destination";
+               writable: true;
+            },
+            {
+               name: "systemProgram";
+               address: "11111111111111111111111111111111";
+            },
+         ];
+         args: [];
+      },
+      {
+         name: "executeTokenTransfer";
+         discriminator: [56, 178, 89, 210, 83, 156, 33, 36];
+         accounts: [
+            {
+               name: "memberWallet";
+               signer: true;
+            },
+            {
+               name: "config";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 111, 110, 102, 105, 103];
+                     },
+                  ];
+               };
+            },
+            {
+               name: "member";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 109, 98, 101, 114];
+                     },
+                     {
+                        kind: "account";
+                        path: "memberWallet";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "proposal";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [112, 114, 111, 112, 111, 115, 97, 108];
+                     },
+                     {
+                        kind: "account";
+                        path: "proposal.index";
+                        account: "proposal";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "curve";
+               docs: ["Required for curve vaults (`proposal.curve`), omitted for the treasury USDC vault."];
+               optional: true;
+            },
+            {
+               name: "mint";
+            },
+            {
+               name: "source";
+               docs: ["The vault named by `proposal.vault`; its address is recomputed and compared in the handler."];
+               writable: true;
+            },
+            {
+               name: "destination";
+               writable: true;
+            },
+            {
+               name: "tokenProgram";
+            },
+         ];
+         args: [];
       },
       {
          name: "fulfillReceipt";
@@ -928,6 +1901,23 @@ export type Mostro = {
                };
             },
             {
+               name: "adminMember";
+               docs: ["The admin becomes the first governance member (super-admin, weight 2)."];
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [109, 101, 109, 98, 101, 114];
+                     },
+                     {
+                        kind: "arg";
+                        path: "args.admin";
+                     },
+                  ];
+               };
+            },
+            {
                name: "program";
                address: "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK";
             },
@@ -1014,7 +2004,6 @@ export type Mostro = {
             },
             {
                name: "artist";
-               writable: true;
                pda: {
                   seeds: [
                      {
@@ -1094,26 +2083,6 @@ export type Mostro = {
                };
             },
             {
-               name: "artistVault";
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [97, 114, 116, 105, 115, 116, 95, 118, 97, 117, 108, 116];
-                     },
-                     {
-                        kind: "account";
-                        path: "artist";
-                     },
-                     {
-                        kind: "account";
-                        path: "mint";
-                     },
-                  ];
-               };
-            },
-            {
                name: "collection";
                writable: true;
                relations: ["perk"];
@@ -1155,14 +2124,19 @@ export type Mostro = {
                };
             },
             {
-               name: "passAsset";
-               docs: ["Optional MoOG Pass held by the buyer, for discount / early access / VIP gating."];
-               optional: true;
-            },
-            {
-               name: "passPerk";
-               docs: ["The pass perk the `pass_asset` belongs to."];
-               optional: true;
+               name: "blacklistEntry";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [98, 108, 97, 99, 107, 108, 105, 115, 116];
+                     },
+                     {
+                        kind: "account";
+                        path: "buyer";
+                     },
+                  ];
+               };
             },
             {
                name: "mplCoreProgram";
@@ -1183,104 +2157,6 @@ export type Mostro = {
             },
             {
                name: "maxPaid";
-               type: "u64";
-            },
-         ];
-      },
-      {
-         name: "sellTokens";
-         discriminator: [114, 242, 25, 12, 62, 126, 92, 2];
-         accounts: [
-            {
-               name: "seller";
-               writable: true;
-               signer: true;
-            },
-            {
-               name: "config";
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [99, 111, 110, 102, 105, 103];
-                     },
-                  ];
-               };
-            },
-            {
-               name: "curve";
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [99, 117, 114, 118, 101];
-                     },
-                     {
-                        kind: "account";
-                        path: "curve.index";
-                        account: "curve";
-                     },
-                  ];
-               };
-            },
-            {
-               name: "mint";
-               writable: true;
-               relations: ["curve"];
-            },
-            {
-               name: "solVault";
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [115, 111, 108, 95, 118, 97, 117, 108, 116];
-                     },
-                     {
-                        kind: "account";
-                        path: "curve";
-                     },
-                  ];
-               };
-            },
-            {
-               name: "treasury";
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [116, 114, 101, 97, 115, 117, 114, 121];
-                     },
-                  ];
-               };
-            },
-            {
-               name: "sellerAta";
-               writable: true;
-            },
-            {
-               name: "kyc";
-               docs: ["Optional KYC record; `check_kyc` verifies it belongs to the seller. No seeds so clients can omit it."];
-               optional: true;
-            },
-            {
-               name: "tokenProgram";
-            },
-            {
-               name: "systemProgram";
-               address: "11111111111111111111111111111111";
-            },
-         ];
-         args: [
-            {
-               name: "tokensIn";
-               type: "u64";
-            },
-            {
-               name: "minLamportsOut";
                type: "u64";
             },
          ];
@@ -1334,6 +2210,59 @@ export type Mostro = {
          ];
       },
       {
+         name: "setBlacklist";
+         discriminator: [39, 254, 8, 213, 62, 24, 226, 248];
+         accounts: [
+            {
+               name: "admin";
+               writable: true;
+               signer: true;
+               relations: ["config"];
+            },
+            {
+               name: "config";
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [99, 111, 110, 102, 105, 103];
+                     },
+                  ];
+               };
+            },
+            {
+               name: "entry";
+               writable: true;
+               pda: {
+                  seeds: [
+                     {
+                        kind: "const";
+                        value: [98, 108, 97, 99, 107, 108, 105, 115, 116];
+                     },
+                     {
+                        kind: "arg";
+                        path: "wallet";
+                     },
+                  ];
+               };
+            },
+            {
+               name: "systemProgram";
+               address: "11111111111111111111111111111111";
+            },
+         ];
+         args: [
+            {
+               name: "wallet";
+               type: "pubkey";
+            },
+            {
+               name: "blocked";
+               type: "bool";
+            },
+         ];
+      },
+      {
          name: "setConfig";
          discriminator: [108, 158, 154, 175, 212, 98, 52, 66];
          accounts: [
@@ -1362,146 +2291,6 @@ export type Mostro = {
                   defined: {
                      name: "setConfigArgs";
                   };
-               };
-            },
-         ];
-      },
-      {
-         name: "setCurveMetadata";
-         discriminator: [156, 65, 32, 0, 233, 223, 70, 133];
-         accounts: [
-            {
-               name: "admin";
-               writable: true;
-               signer: true;
-               relations: ["config"];
-            },
-            {
-               name: "config";
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [99, 111, 110, 102, 105, 103];
-                     },
-                  ];
-               };
-            },
-            {
-               name: "curve";
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [99, 117, 114, 118, 101];
-                     },
-                     {
-                        kind: "account";
-                        path: "curve.index";
-                        account: "curve";
-                     },
-                  ];
-               };
-            },
-            {
-               name: "mint";
-               writable: true;
-               relations: ["curve"];
-            },
-            {
-               name: "metadata";
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [109, 101, 116, 97, 100, 97, 116, 97];
-                     },
-                     {
-                        kind: "account";
-                        path: "tokenMetadataProgram";
-                     },
-                     {
-                        kind: "account";
-                        path: "mint";
-                     },
-                  ];
-                  program: {
-                     kind: "account";
-                     path: "tokenMetadataProgram";
-                  };
-               };
-            },
-            {
-               name: "tokenMetadataProgram";
-               address: "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
-            },
-            {
-               name: "systemProgram";
-               address: "11111111111111111111111111111111";
-            },
-            {
-               name: "rent";
-               address: "SysvarRent111111111111111111111111111111111";
-            },
-         ];
-         args: [];
-      },
-      {
-         name: "setKyc";
-         discriminator: [143, 253, 67, 18, 64, 198, 83, 190];
-         accounts: [
-            {
-               name: "admin";
-               writable: true;
-               signer: true;
-               relations: ["config"];
-            },
-            {
-               name: "config";
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [99, 111, 110, 102, 105, 103];
-                     },
-                  ];
-               };
-            },
-            {
-               name: "kyc";
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [107, 121, 99];
-                     },
-                     {
-                        kind: "arg";
-                        path: "wallet";
-                     },
-                  ];
-               };
-            },
-            {
-               name: "systemProgram";
-               address: "11111111111111111111111111111111";
-            },
-         ];
-         args: [
-            {
-               name: "wallet";
-               type: "pubkey";
-            },
-            {
-               name: "approved";
-               type: "bool";
-            },
-            {
-               name: "country";
-               type: {
-                  array: ["u8", 2];
                };
             },
          ];
@@ -1575,194 +2364,23 @@ export type Mostro = {
             },
          ];
       },
-      {
-         name: "withdrawArtistVault";
-         discriminator: [127, 89, 109, 61, 43, 223, 206, 209];
-         accounts: [
-            {
-               name: "authority";
-               docs: ["Only the artist authority can withdraw; the protocol admin cannot touch artist vaults."];
-               signer: true;
-               relations: ["artist"];
-            },
-            {
-               name: "artist";
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [97, 114, 116, 105, 115, 116];
-                     },
-                     {
-                        kind: "account";
-                        path: "artist.index";
-                        account: "artist";
-                     },
-                  ];
-               };
-            },
-            {
-               name: "mint";
-            },
-            {
-               name: "artistVault";
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [97, 114, 116, 105, 115, 116, 95, 118, 97, 117, 108, 116];
-                     },
-                     {
-                        kind: "account";
-                        path: "artist";
-                     },
-                     {
-                        kind: "account";
-                        path: "mint";
-                     },
-                  ];
-               };
-            },
-            {
-               name: "destination";
-               writable: true;
-            },
-            {
-               name: "tokenProgram";
-            },
-         ];
-         args: [
-            {
-               name: "amount";
-               type: "u64";
-            },
-         ];
-      },
-      {
-         name: "withdrawTreasurySol";
-         discriminator: [183, 223, 87, 23, 30, 186, 126, 187];
-         accounts: [
-            {
-               name: "admin";
-               signer: true;
-               relations: ["config"];
-            },
-            {
-               name: "config";
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [99, 111, 110, 102, 105, 103];
-                     },
-                  ];
-               };
-            },
-            {
-               name: "treasury";
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [116, 114, 101, 97, 115, 117, 114, 121];
-                     },
-                  ];
-               };
-            },
-            {
-               name: "destination";
-               writable: true;
-            },
-            {
-               name: "systemProgram";
-               address: "11111111111111111111111111111111";
-            },
-         ];
-         args: [
-            {
-               name: "amount";
-               type: "u64";
-            },
-         ];
-      },
-      {
-         name: "withdrawTreasuryUsdc";
-         discriminator: [241, 92, 1, 1, 13, 159, 80, 136];
-         accounts: [
-            {
-               name: "admin";
-               signer: true;
-               relations: ["config"];
-            },
-            {
-               name: "config";
-               pda: {
-                  seeds: [
-                     {
-                        kind: "const";
-                        value: [99, 111, 110, 102, 105, 103];
-                     },
-                  ];
-               };
-            },
-            {
-               name: "usdcMint";
-               relations: ["config"];
-            },
-            {
-               name: "treasuryUsdc";
-               writable: true;
-               pda: {
-                  seeds: [
-                     {
-                        kind: "account";
-                        path: "config";
-                     },
-                     {
-                        kind: "account";
-                        path: "usdcTokenProgram";
-                     },
-                     {
-                        kind: "account";
-                        path: "usdcMint";
-                     },
-                  ];
-                  program: {
-                     kind: "const";
-                     value: [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89];
-                  };
-               };
-            },
-            {
-               name: "destination";
-               writable: true;
-            },
-            {
-               name: "usdcTokenProgram";
-            },
-         ];
-         args: [
-            {
-               name: "amount";
-               type: "u64";
-            },
-         ];
-      },
    ];
    accounts: [
+      {
+         name: "approval";
+         discriminator: [233, 9, 153, 49, 11, 222, 59, 130];
+      },
       {
          name: "artist";
          discriminator: [142, 136, 31, 244, 208, 44, 128, 145];
       },
       {
-         name: "baseAssetV1";
-         discriminator: [1];
-      },
-      {
          name: "baseCollectionV1";
          discriminator: [5];
+      },
+      {
+         name: "blacklist";
+         discriminator: [131, 9, 212, 250, 58, 186, 247, 3];
       },
       {
          name: "config";
@@ -1773,16 +2391,24 @@ export type Mostro = {
          discriminator: [191, 180, 249, 66, 180, 71, 51, 182];
       },
       {
-         name: "kyc";
-         discriminator: [27, 3, 5, 223, 163, 21, 37, 201];
+         name: "member";
+         discriminator: [54, 19, 162, 21, 29, 166, 17, 198];
       },
       {
          name: "perk";
          discriminator: [2, 34, 178, 63, 67, 155, 249, 194];
       },
       {
+         name: "proposal";
+         discriminator: [26, 94, 189, 187, 116, 136, 53, 33];
+      },
+      {
          name: "receipt";
          discriminator: [39, 154, 73, 106, 80, 102, 145, 153];
+      },
+      {
+         name: "spendTracker";
+         discriminator: [180, 17, 195, 180, 162, 207, 239, 205];
       },
    ];
    events: [
@@ -1807,8 +2433,8 @@ export type Mostro = {
          discriminator: [51, 184, 188, 50, 40, 83, 44, 59];
       },
       {
-         name: "artistVaultWithdrawn";
-         discriminator: [192, 150, 188, 116, 117, 178, 119, 165];
+         name: "blacklistUpdated";
+         discriminator: [246, 166, 44, 25, 56, 182, 121, 74];
       },
       {
          name: "configInitialized";
@@ -1823,8 +2449,12 @@ export type Mostro = {
          discriminator: [207, 148, 202, 45, 236, 100, 171, 230];
       },
       {
-         name: "kycUpdated";
-         discriminator: [93, 95, 129, 3, 177, 236, 12, 233];
+         name: "emergencyPaused";
+         discriminator: [97, 135, 220, 149, 143, 72, 9, 27];
+      },
+      {
+         name: "memberUpdated";
+         discriminator: [122, 225, 250, 121, 60, 189, 11, 147];
       },
       {
          name: "perkCreated";
@@ -1839,6 +2469,22 @@ export type Mostro = {
          discriminator: [129, 27, 145, 8, 43, 158, 57, 242];
       },
       {
+         name: "proposalApproved";
+         discriminator: [70, 49, 155, 228, 157, 43, 88, 49];
+      },
+      {
+         name: "proposalCancelled";
+         discriminator: [253, 59, 104, 46, 129, 78, 9, 14];
+      },
+      {
+         name: "proposalCreated";
+         discriminator: [186, 8, 160, 108, 81, 13, 51, 206];
+      },
+      {
+         name: "proposalExecuted";
+         discriminator: [92, 213, 189, 201, 101, 83, 111, 83];
+      },
+      {
          name: "receiptFulfilled";
          discriminator: [233, 218, 183, 192, 156, 80, 118, 161];
       },
@@ -1847,174 +2493,220 @@ export type Mostro = {
          discriminator: [151, 148, 173, 226, 128, 30, 249, 190];
       },
       {
-         name: "tokensSold";
-         discriminator: [217, 83, 68, 137, 134, 225, 94, 45];
-      },
-      {
-         name: "treasuryWithdrawn";
-         discriminator: [143, 181, 157, 169, 87, 155, 170, 46];
+         name: "vaultTransferred";
+         discriminator: [217, 143, 236, 60, 98, 14, 49, 60];
       },
    ];
    errors: [
       {
          code: 6000;
-         name: "paused";
-         msg: "Protocol is paused";
+         name: "buysPaused";
+         msg: "Curve buys are paused";
       },
       {
          code: 6001;
+         name: "redeemsPaused";
+         msg: "Perk redemptions are paused";
+      },
+      {
+         code: 6002;
          name: "unauthorized";
          msg: "Signer is not authorized";
       },
       {
-         code: 6002;
+         code: 6003;
          name: "saleNotStarted";
          msg: "Sale has not started yet";
       },
       {
-         code: 6003;
+         code: 6004;
          name: "perkInactive";
          msg: "Perk is inactive";
       },
       {
-         code: 6004;
+         code: 6005;
          name: "perkSoldOut";
          msg: "Perk is sold out";
       },
       {
-         code: 6005;
+         code: 6006;
          name: "slippageExceeded";
          msg: "Slippage limit exceeded";
       },
       {
-         code: 6006;
+         code: 6007;
          name: "curveSoldOut";
          msg: "Curve supply cap reached";
       },
       {
-         code: 6007;
-         name: "curveComplete";
-         msg: "Curve is complete; trading is closed";
-      },
-      {
          code: 6008;
-         name: "insufficientReserves";
-         msg: "Insufficient real reserves to pay out";
+         name: "curveComplete";
+         msg: "Curve is complete; the primary market is closed";
       },
       {
          code: 6009;
+         name: "insufficientReserves";
+         msg: "Insufficient balance in the source vault";
+      },
+      {
+         code: 6010;
          name: "mathOverflow";
          msg: "Arithmetic overflow";
       },
       {
-         code: 6010;
+         code: 6011;
          name: "invalidAmount";
          msg: "Invalid amount";
       },
       {
-         code: 6011;
+         code: 6012;
          name: "invalidBps";
          msg: "Invalid basis points";
       },
       {
-         code: 6012;
+         code: 6013;
          name: "invalidTier";
          msg: "Invalid tier";
       },
       {
-         code: 6013;
+         code: 6014;
          name: "invalidCurveParams";
          msg: "Invalid curve parameters";
       },
       {
-         code: 6014;
+         code: 6015;
          name: "stringTooLong";
          msg: "String too long";
       },
       {
-         code: 6015;
+         code: 6016;
          name: "invalidPriceAccount";
          msg: "Price account does not match config";
       },
       {
-         code: 6016;
+         code: 6017;
          name: "priceFeedMismatch";
          msg: "Price feed id mismatch";
       },
       {
-         code: 6017;
+         code: 6018;
          name: "priceTooOld";
          msg: "Price is too old";
       },
       {
-         code: 6018;
+         code: 6019;
          name: "priceNonPositive";
          msg: "Price is not positive";
       },
       {
-         code: 6019;
+         code: 6020;
          name: "priceNotSet";
          msg: "Price not set";
       },
       {
-         code: 6020;
+         code: 6021;
+         name: "priceUncertain";
+         msg: "Price confidence interval too wide";
+      },
+      {
+         code: 6022;
          name: "adminTransferNotReady";
          msg: "Admin transfer not ready";
       },
       {
-         code: 6021;
+         code: 6023;
          name: "noPendingAdmin";
          msg: "No pending admin transfer";
       },
       {
-         code: 6022;
+         code: 6024;
          name: "invalidCollection";
          msg: "Collection does not match perk";
       },
       {
-         code: 6023;
+         code: 6025;
          name: "invalidMint";
          msg: "Mint does not match";
       },
       {
-         code: 6024;
-         name: "kycRequired";
-         msg: "KYC approval required";
-      },
-      {
-         code: 6025;
-         name: "vipOnly";
-         msg: "Perk is VIP-only";
-      },
-      {
          code: 6026;
-         name: "invalidPass";
-         msg: "Pass asset is not valid for this buyer";
-      },
-      {
-         code: 6027;
-         name: "passMismatch";
-         msg: "Pass perk and pass asset do not match";
-      },
-      {
-         code: 6028;
          name: "alreadyFulfilled";
          msg: "Receipt already fulfilled";
       },
       {
-         code: 6029;
+         code: 6027;
          name: "artistInactive";
          msg: "Artist is inactive";
       },
       {
+         code: 6028;
+         name: "blacklisted";
+         msg: "Wallet is blacklisted";
+      },
+      {
+         code: 6029;
+         name: "spendCapExceeded";
+         msg: "Monthly SOL spend cap exceeded for this artist";
+      },
+      {
          code: 6030;
-         name: "invalidDiscount";
-         msg: "Discount exceeds price";
+         name: "artistHasCurve";
+         msg: "Artist already has a token";
       },
       {
          code: 6031;
-         name: "priceUncertain";
-         msg: "Price confidence interval too wide";
+         name: "invalidPerkPrice";
+         msg: "Perk must be priced in tokens or in SOL, not both or neither";
+      },
+      {
+         code: 6032;
+         name: "wrongPerkPayment";
+         msg: "Perk is not payable with this instruction";
+      },
+      {
+         code: 6033;
+         name: "notAMember";
+         msg: "Signer is not a governance member";
+      },
+      {
+         code: 6034;
+         name: "invalidRole";
+         msg: "Invalid member role";
+      },
+      {
+         code: 6035;
+         name: "lastMember";
+         msg: "Cannot remove the last voting weight";
+      },
+      {
+         code: 6036;
+         name: "invalidProposalKind";
+         msg: "Invalid proposal kind";
+      },
+      {
+         code: 6037;
+         name: "invalidVault";
+         msg: "Invalid vault for this proposal";
+      },
+      {
+         code: 6038;
+         name: "proposalClosed";
+         msg: "Proposal is executed or cancelled";
+      },
+      {
+         code: 6039;
+         name: "proposalExpired";
+         msg: "Proposal has expired";
+      },
+      {
+         code: 6040;
+         name: "thresholdNotMet";
+         msg: "Proposal has not reached the approval threshold";
+      },
+      {
+         code: 6041;
+         name: "proposalMismatch";
+         msg: "Account does not match the proposal";
       },
    ];
    types: [
@@ -2071,6 +2763,35 @@ export type Mostro = {
          };
       },
       {
+         name: "approval";
+         docs: ['One member\'s approval of one proposal. PDA `["approval", proposal, wallet]`.'];
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "bump";
+                  type: "u8";
+               },
+               {
+                  name: "proposal";
+                  type: "pubkey";
+               },
+               {
+                  name: "member";
+                  type: "pubkey";
+               },
+               {
+                  name: "weight";
+                  type: "u16";
+               },
+               {
+                  name: "ts";
+                  type: "i64";
+               },
+            ];
+         };
+      },
+      {
          name: "artist";
          docs: ['An artist that opens perks to fans. PDA `["artist", index_le]`.'];
          type: {
@@ -2090,7 +2811,12 @@ export type Mostro = {
                },
                {
                   name: "authority";
-                  docs: ["Wallet allowed to manage this artist's perks and withdraw its vault."];
+                  docs: ["Wallet that manages this artist's perks and receives the artist half of hybrid perk sales."];
+                  type: "pubkey";
+               },
+               {
+                  name: "curve";
+                  docs: ["The artist's curve, or `Pubkey::default()` until `create_curve` runs for it."];
                   type: "pubkey";
                },
                {
@@ -2106,8 +2832,8 @@ export type Mostro = {
                   type: "u32";
                },
                {
-                  name: "revenueTokens";
-                  docs: ["Cumulative tokens routed to the artist vault."];
+                  name: "revenueLamports";
+                  docs: ["Cumulative lamports paid to `authority` by hybrid perks."];
                   type: "u64";
                },
                {
@@ -2168,72 +2894,6 @@ export type Mostro = {
          };
       },
       {
-         name: "artistVaultWithdrawn";
-         type: {
-            kind: "struct";
-            fields: [
-               {
-                  name: "artist";
-                  type: "pubkey";
-               },
-               {
-                  name: "mint";
-                  type: "pubkey";
-               },
-               {
-                  name: "destination";
-                  type: "pubkey";
-               },
-               {
-                  name: "amount";
-                  type: "u64";
-               },
-            ];
-         };
-      },
-      {
-         name: "baseAssetV1";
-         type: {
-            kind: "struct";
-            fields: [
-               {
-                  name: "key";
-                  type: {
-                     defined: {
-                        name: "key";
-                     };
-                  };
-               },
-               {
-                  name: "owner";
-                  type: "pubkey";
-               },
-               {
-                  name: "updateAuthority";
-                  type: {
-                     defined: {
-                        name: "updateAuthority";
-                     };
-                  };
-               },
-               {
-                  name: "name";
-                  type: "string";
-               },
-               {
-                  name: "uri";
-                  type: "string";
-               },
-               {
-                  name: "seq";
-                  type: {
-                     option: "u64";
-                  };
-               },
-            ];
-         };
-      },
-      {
          name: "baseCollectionV1";
          type: {
             kind: "struct";
@@ -2270,6 +2930,47 @@ export type Mostro = {
          };
       },
       {
+         name: "blacklist";
+         docs: ['Blacklist entry. Every wallet is allowed unless `["blacklist", wallet]` exists with', '`blocked == true`. Written by the admin. PDA `["blacklist", wallet]`.'];
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "bump";
+                  type: "u8";
+               },
+               {
+                  name: "wallet";
+                  type: "pubkey";
+               },
+               {
+                  name: "blocked";
+                  type: "bool";
+               },
+               {
+                  name: "updatedTs";
+                  type: "i64";
+               },
+            ];
+         };
+      },
+      {
+         name: "blacklistUpdated";
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "wallet";
+                  type: "pubkey";
+               },
+               {
+                  name: "blocked";
+                  type: "bool";
+               },
+            ];
+         };
+      },
+      {
          name: "config";
          docs: ['Global protocol configuration. Single PDA `["config"]`.'];
          type: {
@@ -2285,6 +2986,7 @@ export type Mostro = {
                },
                {
                   name: "admin";
+                  docs: ["Operator key: pauses, prices, blacklist, onboarding. Cannot move cold vaults or treasury."];
                   type: "pubkey";
                },
                {
@@ -2309,16 +3011,16 @@ export type Mostro = {
                },
                {
                   name: "feeBps";
-                  docs: ["Protocol fee on curve trades, in basis points of the quote amount."];
+                  docs: ["Protocol fee on curve buys, in basis points of the quote amount."];
                   type: "u16";
                },
                {
-                  name: "paused";
+                  name: "buysPaused";
+                  docs: ["Circuit breakers. Buys cover every curve purchase (SOL, USDC, the curve leg of a hybrid", "perk); redeems cover `redeem_perk` and `buy_perk_sol`."];
                   type: "bool";
                },
                {
-                  name: "kycRequired";
-                  docs: ["When true, buying tokens on the curve requires an approved `Kyc` record."];
+                  name: "redeemsPaused";
                   type: "bool";
                },
                {
@@ -2347,24 +3049,41 @@ export type Mostro = {
                },
                {
                   name: "maxPriceAgeSecs";
+                  docs: ["Max age of a Pyth price (mode 1)."];
                   type: "u32";
                },
                {
-                  name: "standardDiscountBps";
-                  docs: ["MoOG Pass benefits, enforced on-chain in `redeem_perk`."];
+                  name: "adminPriceMaxAgeSecs";
+                  docs: ["Max age of the admin-set SOL/USD price (mode 0)."];
+                  type: "u32";
+               },
+               {
+                  name: "launchCooldownSecs";
+                  docs: ["Seconds between a token's creation (first mint) and the opening of its curve."];
+                  type: "u32";
+               },
+               {
+                  name: "maxSpendPerPeriodLamports";
+                  docs: ["Anti-whale cap: lamports a wallet may put into one curve per 30-day period. 0 = no cap."];
+                  type: "u64";
+               },
+               {
+                  name: "proposalTtlSecs";
+                  docs: ["Lifetime of a governance proposal."];
+                  type: "u32";
+               },
+               {
+                  name: "totalWeight";
+                  docs: ["Sum of the voting weights of all current members."];
                   type: "u16";
                },
                {
-                  name: "vipDiscountBps";
+                  name: "memberCount";
                   type: "u16";
                },
                {
-                  name: "standardEarlySecs";
-                  type: "u32";
-               },
-               {
-                  name: "vipEarlySecs";
-                  type: "u32";
+                  name: "proposalCount";
+                  type: "u64";
                },
                {
                   name: "curveCount";
@@ -2375,23 +3094,9 @@ export type Mostro = {
                   type: "u32";
                },
                {
-                  name: "minBurnBps";
-                  docs: ["Floors every perk's split must respect (protects protocol economics from artists)."];
-                  type: "u16";
-               },
-               {
-                  name: "minRewardsBps";
-                  type: "u16";
-               },
-               {
-                  name: "adminPriceMaxAgeSecs";
-                  docs: ["Max age of the admin-set SOL/USD price (mode 0). Pyth mode uses `max_price_age_secs`."];
-                  type: "u32";
-               },
-               {
                   name: "reserved";
                   type: {
-                     array: ["u8", 56];
+                     array: ["u8", 64];
                   };
                },
             ];
@@ -2414,6 +3119,10 @@ export type Mostro = {
                   name: "feeBps";
                   type: "u16";
                },
+               {
+                  name: "launchCooldownSecs";
+                  type: "u32";
+               },
             ];
          };
       },
@@ -2427,7 +3136,11 @@ export type Mostro = {
                   type: "pubkey";
                },
                {
-                  name: "paused";
+                  name: "buysPaused";
+                  type: "bool";
+               },
+               {
+                  name: "redeemsPaused";
                   type: "bool";
                },
                {
@@ -2443,8 +3156,12 @@ export type Mostro = {
                   type: "u16";
                },
                {
-                  name: "kycRequired";
-                  type: "bool";
+                  name: "launchCooldownSecs";
+                  type: "u32";
+               },
+               {
+                  name: "maxSpendPerPeriodLamports";
+                  type: "u64";
                },
             ];
          };
@@ -2468,18 +3185,17 @@ export type Mostro = {
                },
                {
                   name: "virtualSolReserves";
+                  docs: ["Virtual quote reserve at genesis (lamports)."];
                   type: "u64";
                },
                {
                   name: "virtualTokenReserves";
-                  type: "u64";
-               },
-               {
-                  name: "supplyCap";
+                  docs: ["Virtual token reserve at genesis (base units). Must exceed `CURVE_ALLOCATION`."];
                   type: "u64";
                },
                {
                   name: "saleStartTs";
+                  docs: ["Requested opening time. The curve opens at the later of this and", "`now + config.launch_cooldown_secs`."];
                   type: "i64";
                },
             ];
@@ -2503,16 +3219,14 @@ export type Mostro = {
                   type: "u8";
                },
                {
-                  name: "price";
+                  name: "priceTokens";
+                  docs: ["Token price (base units). Set exactly one of `price_tokens` / `price_lamports`."];
                   type: "u64";
                },
                {
-                  name: "burnBps";
-                  type: "u16";
-               },
-               {
-                  name: "rewardsBps";
-                  type: "u16";
+                  name: "priceLamports";
+                  docs: ["SOL price (lamports) for a hybrid perk."];
+                  type: "u64";
                },
                {
                   name: "maxSupply";
@@ -2521,14 +3235,6 @@ export type Mostro = {
                {
                   name: "publicStartTs";
                   type: "i64";
-               },
-               {
-                  name: "vipOnly";
-                  type: "bool";
-               },
-               {
-                  name: "discountEligible";
-                  type: "bool";
                },
                {
                   name: "name";
@@ -2547,8 +3253,58 @@ export type Mostro = {
          };
       },
       {
+         name: "createProposalArgs";
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "kind";
+                  docs: ["`PROPOSAL_VAULT_TRANSFER` or `PROPOSAL_SET_MEMBER`."];
+                  type: "u8";
+               },
+               {
+                  name: "curve";
+                  docs: ["Vault transfer: the curve whose vault moves (zero for the treasury vaults)."];
+                  type: "pubkey";
+               },
+               {
+                  name: "vault";
+                  docs: ["Vault transfer: one of the `VAULT_*` constants."];
+                  type: "u8";
+               },
+               {
+                  name: "destination";
+                  docs: ["Vault transfer: token account (token vaults) or system account (SOL vaults) that receives."];
+                  type: "pubkey";
+               },
+               {
+                  name: "amount";
+                  docs: ["Vault transfer: base units or lamports."];
+                  type: "u64";
+               },
+               {
+                  name: "wallet";
+                  docs: ["Set member: the wallet."];
+                  type: "pubkey";
+               },
+               {
+                  name: "role";
+                  docs: ["Set member: `ROLE_ADMIN`, `ROLE_SUPER_ADMIN`, or `ROLE_NONE` to remove."];
+                  type: "u8";
+               },
+            ];
+         };
+      },
+      {
          name: "curve";
-         docs: ['A bonding curve for one token mint (the first one is $MOST). PDA `["curve", index_le]`.'];
+         docs: [
+            'One artist token and its bonding curve. PDA `["curve", index_le]`.',
+            "",
+            "Vaults (all owned by this PDA): `curve_vault` (hot, 28 %), `artist_reserve` (cold, 50 %),",
+            "`mostro_reserve` (cold, 15 %), `dex_reserve` (cold, 7 %), `rewards_vault` (20 % of redeems),",
+            "`sol_vault` (SOL paid on the curve) and the USDC ATA. Cold vaults, `sol_vault` and the USDC",
+            "vault move only through an executed governance proposal.",
+         ];
          type: {
             kind: "struct";
             fields: [
@@ -2563,6 +3319,11 @@ export type Mostro = {
                {
                   name: "index";
                   type: "u32";
+               },
+               {
+                  name: "artist";
+                  docs: ["Artist PDA this token belongs to. One token per artist."];
+                  type: "pubkey";
                },
                {
                   name: "mint";
@@ -2595,21 +3356,27 @@ export type Mostro = {
                },
                {
                   name: "realSolReserves";
-                  docs: ["Real SOL held in `sol_vault` that backs sells (never includes the rent floor)."];
+                  docs: ["Real SOL held in `sol_vault` (never includes the rent floor)."];
                   type: "u64";
                },
                {
                   name: "realUsdcReserves";
-                  docs: ["USDC received through `buy_tokens_usdc` (not sellable back; informational)."];
+                  docs: ["USDC received through `buy_tokens_usdc` (informational)."];
                   type: "u64";
                },
                {
                   name: "supplyCap";
-                  docs: ["Max tokens the curve will ever mint. Reaching it marks the curve `complete`."];
+                  docs: ["Tokens the curve may sell: `CURVE_ALLOCATION`. Reaching it marks the curve `complete`."];
                   type: "u64";
                },
                {
                   name: "tokensSold";
+                  docs: ["Tokens that left `curve_vault` through buys and hybrid perks."];
+                  type: "u64";
+               },
+               {
+                  name: "artistReserveUsed";
+                  docs: ["Tokens that left `artist_reserve` through hybrid perks."];
                   type: "u64";
                },
                {
@@ -2622,6 +3389,7 @@ export type Mostro = {
                },
                {
                   name: "saleStartTs";
+                  docs: ["Opening time of the curve: `created_at + config.launch_cooldown_secs` at the earliest."];
                   type: "i64";
                },
                {
@@ -2651,6 +3419,10 @@ export type Mostro = {
                   type: "pubkey";
                },
                {
+                  name: "artist";
+                  type: "pubkey";
+               },
+               {
                   name: "mint";
                   type: "pubkey";
                },
@@ -2670,6 +3442,23 @@ export type Mostro = {
                   name: "supplyCap";
                   type: "u64";
                },
+               {
+                  name: "saleStartTs";
+                  type: "i64";
+               },
+            ];
+         };
+      },
+      {
+         name: "emergencyPaused";
+         docs: ["A member pulled the circuit breaker: buys and redeems are both paused."];
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "by";
+                  type: "pubkey";
+               },
             ];
          };
       },
@@ -2680,6 +3469,7 @@ export type Mostro = {
             fields: [
                {
                   name: "admin";
+                  docs: ["Operator key and founding super-admin of the multisig."];
                   type: "pubkey";
                },
                {
@@ -2709,15 +3499,21 @@ export type Mostro = {
                   type: "u32";
                },
                {
-                  name: "minBurnBps";
-                  type: "u16";
-               },
-               {
-                  name: "minRewardsBps";
-                  type: "u16";
-               },
-               {
                   name: "adminPriceMaxAgeSecs";
+                  type: "u32";
+               },
+               {
+                  name: "launchCooldownSecs";
+                  docs: ["Seconds between a token's first mint and the opening of its curve (product: 24 h)."];
+                  type: "u32";
+               },
+               {
+                  name: "maxSpendPerPeriodLamports";
+                  docs: ["Anti-whale cap in lamports per wallet, per curve, per 30-day period. 0 = off."];
+                  type: "u64";
+               },
+               {
+                  name: "proposalTtlSecs";
                   type: "u32";
                },
             ];
@@ -2753,8 +3549,8 @@ export type Mostro = {
          };
       },
       {
-         name: "kyc";
-         docs: ['KYC attestation written by the admin after the off-chain ID check. PDA `["kyc", wallet]`.'];
+         name: "member";
+         docs: ['Governance member. PDA `["member", wallet]`. `role == ROLE_NONE` means removed.'];
          type: {
             kind: "struct";
             fields: [
@@ -2767,15 +3563,8 @@ export type Mostro = {
                   type: "pubkey";
                },
                {
-                  name: "approved";
-                  type: "bool";
-               },
-               {
-                  name: "country";
-                  docs: ["ISO 3166-1 alpha-2, uppercase ASCII."];
-                  type: {
-                     array: ["u8", 2];
-                  };
+                  name: "role";
+                  type: "u8";
                },
                {
                   name: "updatedTs";
@@ -2785,7 +3574,7 @@ export type Mostro = {
          };
       },
       {
-         name: "kycUpdated";
+         name: "memberUpdated";
          type: {
             kind: "struct";
             fields: [
@@ -2794,21 +3583,28 @@ export type Mostro = {
                   type: "pubkey";
                },
                {
-                  name: "approved";
-                  type: "bool";
+                  name: "role";
+                  type: "u8";
                },
                {
-                  name: "country";
-                  type: {
-                     array: ["u8", 2];
-                  };
+                  name: "totalWeight";
+                  type: "u16";
                },
             ];
          };
       },
       {
          name: "perk";
-         docs: ['Something a fan can redeem tokens for. PDA `["perk", artist, index_le]`.'];
+         docs: [
+            'Something a fan can get. PDA `["perk", artist, index_le]`.',
+            "",
+            "Exactly one of `price_tokens` / `price_lamports` is non-zero:",
+            "- `price_tokens > 0`: the fan pays tokens from its wallet (`redeem_perk`).",
+            "- `price_lamports > 0`: hybrid perk, the fan pays SOL (`buy_perk_sol`); the tokens come half from",
+            "the curve and half from the artist reserve.",
+            "",
+            "Either way 80 % of the tokens involved are burned and 20 % go to the rewards vault.",
+         ];
          type: {
             kind: "struct";
             fields: [
@@ -2830,12 +3626,12 @@ export type Mostro = {
                },
                {
                   name: "mint";
-                  docs: ["Token the perk is priced in (a curve mint)."];
+                  docs: ["Token the perk is tied to (the artist's curve mint)."];
                   type: "pubkey";
                },
                {
                   name: "collection";
-                  docs: ["Metaplex Core collection every redeemed asset is minted into."];
+                  docs: ["Metaplex Core collection every minted asset belongs to."];
                   type: "pubkey";
                },
                {
@@ -2852,22 +3648,18 @@ export type Mostro = {
                },
                {
                   name: "tier";
-                  docs: ["Pass tier (0 Standard, 1 VIP). Zero for non-pass perks."];
+                  docs: ["Pass tier (0 Classic, 1 VIP). Zero for non-pass perks. Informational."];
                   type: "u8";
                },
                {
-                  name: "price";
-                  docs: ["Price in token base units (6 decimals)."];
+                  name: "priceTokens";
+                  docs: ["Price in token base units (6 decimals). 0 for hybrid perks."];
                   type: "u64";
                },
                {
-                  name: "burnBps";
-                  docs: ["Split of the paid amount: burned / rewards vault / artist vault (remainder)."];
-                  type: "u16";
-               },
-               {
-                  name: "rewardsBps";
-                  type: "u16";
+                  name: "priceLamports";
+                  docs: ["Price in lamports. 0 for token-priced perks."];
+                  type: "u64";
                },
                {
                   name: "maxSupply";
@@ -2880,18 +3672,8 @@ export type Mostro = {
                },
                {
                   name: "publicStartTs";
-                  docs: ["Unix time when everyone can redeem. Pass holders may redeem earlier."];
+                  docs: ["Unix time from which the perk can be redeemed."];
                   type: "i64";
-               },
-               {
-                  name: "vipOnly";
-                  docs: ["Only VIP pass holders may redeem."];
-                  type: "bool";
-               },
-               {
-                  name: "discountEligible";
-                  docs: ["Whether pass discounts apply (music & merch per product copy)."];
-                  type: "bool";
                },
                {
                   name: "active";
@@ -2944,7 +3726,11 @@ export type Mostro = {
                   type: "u8";
                },
                {
-                  name: "price";
+                  name: "priceTokens";
+                  type: "u64";
+               },
+               {
+                  name: "priceLamports";
                   type: "u64";
                },
                {
@@ -2956,7 +3742,11 @@ export type Mostro = {
       },
       {
          name: "perkKind";
-         docs: ["Kind of perk an artist opens to fans (mirrors the product copy: pass, music, events, merch)."];
+         docs: [
+            "Kind of perk an artist opens to fans. The program does not interpret it: it is written into the",
+            "minted asset's attributes so the web app can render the right benefit. Pass benefits (discounts,",
+            "early access, VIP areas) are applied by the web app, not on-chain.",
+         ];
          repr: {
             kind: "rust";
          };
@@ -2980,6 +3770,7 @@ export type Mostro = {
       },
       {
          name: "perkRedeemed";
+         docs: ["Emitted by both `redeem_perk` (tokens) and `buy_perk_sol` (hybrid)."];
          type: {
             kind: "struct";
             fields: [
@@ -3020,7 +3811,19 @@ export type Mostro = {
                   type: "u8";
                },
                {
-                  name: "paid";
+                  name: "paidTokens";
+                  type: "u64";
+               },
+               {
+                  name: "paidLamports";
+                  type: "u64";
+               },
+               {
+                  name: "tokensFromCurve";
+                  type: "u64";
+               },
+               {
+                  name: "tokensFromArtist";
                   type: "u64";
                },
                {
@@ -3032,16 +3835,12 @@ export type Mostro = {
                   type: "u64";
                },
                {
-                  name: "toArtist";
+                  name: "lamportsToCurve";
                   type: "u64";
                },
                {
-                  name: "discountBps";
-                  type: "u16";
-               },
-               {
-                  name: "passUsed";
-                  type: "pubkey";
+                  name: "lamportsToArtist";
+                  type: "u64";
                },
             ];
          };
@@ -3060,7 +3859,11 @@ export type Mostro = {
                   type: "pubkey";
                },
                {
-                  name: "price";
+                  name: "priceTokens";
+                  type: "u64";
+               },
+               {
+                  name: "priceLamports";
                   type: "u64";
                },
                {
@@ -3075,21 +3878,175 @@ export type Mostro = {
                   name: "publicStartTs";
                   type: "i64";
                },
+            ];
+         };
+      },
+      {
+         name: "proposal";
+         docs: ['A governance proposal. PDA `["proposal", index_le]`. Payload fields are flat so the IDL stays', "simple; the ones a `kind` does not use are zero."];
+         type: {
+            kind: "struct";
+            fields: [
                {
-                  name: "vipOnly";
-                  type: "bool";
+                  name: "bump";
+                  type: "u8";
                },
                {
-                  name: "discountEligible";
-                  type: "bool";
+                  name: "index";
+                  type: "u64";
                },
                {
-                  name: "burnBps";
+                  name: "proposer";
+                  type: "pubkey";
+               },
+               {
+                  name: "kind";
+                  docs: ["`PROPOSAL_VAULT_TRANSFER` or `PROPOSAL_SET_MEMBER`."];
+                  type: "u8";
+               },
+               {
+                  name: "createdTs";
+                  type: "i64";
+               },
+               {
+                  name: "expiresTs";
+                  type: "i64";
+               },
+               {
+                  name: "approvedWeight";
                   type: "u16";
                },
                {
-                  name: "rewardsBps";
+                  name: "executed";
+                  type: "bool";
+               },
+               {
+                  name: "cancelled";
+                  type: "bool";
+               },
+               {
+                  name: "curve";
+                  docs: ["Vault transfer: the curve (zero for treasury vaults), which vault, where to, how much."];
+                  type: "pubkey";
+               },
+               {
+                  name: "vault";
+                  type: "u8";
+               },
+               {
+                  name: "destination";
+                  type: "pubkey";
+               },
+               {
+                  name: "amount";
+                  type: "u64";
+               },
+               {
+                  name: "wallet";
+                  docs: ["Set member: the wallet and its new role (`ROLE_NONE` removes it)."];
+                  type: "pubkey";
+               },
+               {
+                  name: "role";
+                  type: "u8";
+               },
+               {
+                  name: "reserved";
+                  type: {
+                     array: ["u8", 32];
+                  };
+               },
+            ];
+         };
+      },
+      {
+         name: "proposalApproved";
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "proposal";
+                  type: "pubkey";
+               },
+               {
+                  name: "member";
+                  type: "pubkey";
+               },
+               {
+                  name: "weight";
                   type: "u16";
+               },
+               {
+                  name: "approvedWeight";
+                  type: "u16";
+               },
+               {
+                  name: "totalWeight";
+                  type: "u16";
+               },
+            ];
+         };
+      },
+      {
+         name: "proposalCancelled";
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "proposal";
+                  type: "pubkey";
+               },
+               {
+                  name: "by";
+                  type: "pubkey";
+               },
+            ];
+         };
+      },
+      {
+         name: "proposalCreated";
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "proposal";
+                  type: "pubkey";
+               },
+               {
+                  name: "index";
+                  type: "u64";
+               },
+               {
+                  name: "proposer";
+                  type: "pubkey";
+               },
+               {
+                  name: "kind";
+                  type: "u8";
+               },
+               {
+                  name: "expiresTs";
+                  type: "i64";
+               },
+            ];
+         };
+      },
+      {
+         name: "proposalExecuted";
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "proposal";
+                  type: "pubkey";
+               },
+               {
+                  name: "kind";
+                  type: "u8";
+               },
+               {
+                  name: "by";
+                  type: "pubkey";
                },
             ];
          };
@@ -3141,7 +4098,23 @@ export type Mostro = {
                   type: "u8";
                },
                {
-                  name: "paid";
+                  name: "paidTokens";
+                  docs: ["Tokens the buyer spent from its wallet (token-priced perks)."];
+                  type: "u64";
+               },
+               {
+                  name: "paidLamports";
+                  docs: ["Lamports the buyer spent (hybrid perks)."];
+                  type: "u64";
+               },
+               {
+                  name: "tokensFromCurve";
+                  docs: ["Tokens taken from `curve_vault` (hybrid perks)."];
+                  type: "u64";
+               },
+               {
+                  name: "tokensFromArtist";
+                  docs: ["Tokens taken from `artist_reserve` (hybrid perks)."];
                   type: "u64";
                },
                {
@@ -3153,17 +4126,13 @@ export type Mostro = {
                   type: "u64";
                },
                {
-                  name: "toArtist";
+                  name: "lamportsToCurve";
+                  docs: ["Lamports that went into the curve (`sol_vault` + fee) and to the artist wallet."];
                   type: "u64";
                },
                {
-                  name: "discountBps";
-                  type: "u16";
-               },
-               {
-                  name: "passUsed";
-                  docs: ["Pass asset used for discount/early access, or default if none."];
-                  type: "pubkey";
+                  name: "lamportsToArtist";
+                  type: "u64";
                },
                {
                   name: "ts";
@@ -3245,13 +4214,13 @@ export type Mostro = {
             kind: "struct";
             fields: [
                {
-                  name: "paused";
+                  name: "buysPaused";
                   type: {
                      option: "bool";
                   };
                },
                {
-                  name: "kycRequired";
+                  name: "redeemsPaused";
                   type: {
                      option: "bool";
                   };
@@ -3289,49 +4258,31 @@ export type Mostro = {
                   };
                },
                {
+                  name: "adminPriceMaxAgeSecs";
+                  type: {
+                     option: "u32";
+                  };
+               },
+               {
                   name: "feeBps";
                   type: {
                      option: "u16";
                   };
                },
                {
-                  name: "standardDiscountBps";
-                  type: {
-                     option: "u16";
-                  };
-               },
-               {
-                  name: "vipDiscountBps";
-                  type: {
-                     option: "u16";
-                  };
-               },
-               {
-                  name: "standardEarlySecs";
+                  name: "launchCooldownSecs";
                   type: {
                      option: "u32";
                   };
                },
                {
-                  name: "vipEarlySecs";
+                  name: "maxSpendPerPeriodLamports";
                   type: {
-                     option: "u32";
+                     option: "u64";
                   };
                },
                {
-                  name: "minBurnBps";
-                  type: {
-                     option: "u16";
-                  };
-               },
-               {
-                  name: "minRewardsBps";
-                  type: {
-                     option: "u16";
-                  };
-               },
-               {
-                  name: "adminPriceMaxAgeSecs";
+                  name: "proposalTtlSecs";
                   type: {
                      option: "u32";
                   };
@@ -3345,7 +4296,13 @@ export type Mostro = {
             kind: "struct";
             fields: [
                {
-                  name: "price";
+                  name: "priceTokens";
+                  type: {
+                     option: "u64";
+                  };
+               },
+               {
+                  name: "priceLamports";
                   type: {
                      option: "u64";
                   };
@@ -3369,34 +4326,40 @@ export type Mostro = {
                   };
                },
                {
-                  name: "vipOnly";
-                  type: {
-                     option: "bool";
-                  };
-               },
-               {
-                  name: "discountEligible";
-                  type: {
-                     option: "bool";
-                  };
-               },
-               {
-                  name: "burnBps";
-                  type: {
-                     option: "u16";
-                  };
-               },
-               {
-                  name: "rewardsBps";
-                  type: {
-                     option: "u16";
-                  };
-               },
-               {
                   name: "uri";
                   type: {
                      option: "string";
                   };
+               },
+            ];
+         };
+      },
+      {
+         name: "spendTracker";
+         docs: ["Anti-whale tracker: lamports one wallet put into one curve in the current 30-day period.", 'PDA `["spend", curve, wallet]`.'];
+         type: {
+            kind: "struct";
+            fields: [
+               {
+                  name: "bump";
+                  type: "u8";
+               },
+               {
+                  name: "curve";
+                  type: "pubkey";
+               },
+               {
+                  name: "wallet";
+                  type: "pubkey";
+               },
+               {
+                  name: "period";
+                  docs: ["`unix_time / SPEND_PERIOD_SECS` of the period `spent_lamports` refers to."];
+                  type: "i64";
+               },
+               {
+                  name: "spentLamports";
+                  type: "u64";
                },
             ];
          };
@@ -3420,7 +4383,7 @@ export type Mostro = {
                },
                {
                   name: "quoteKind";
-                  docs: ["0 = SOL, 1 = USDC"];
+                  docs: ["0 = SOL, 1 = USDC, 2 = curve leg of a hybrid perk"];
                   type: "u8";
                },
                {
@@ -3451,50 +4414,22 @@ export type Mostro = {
          };
       },
       {
-         name: "tokensSold";
+         name: "vaultTransferred";
          type: {
             kind: "struct";
             fields: [
+               {
+                  name: "proposal";
+                  type: "pubkey";
+               },
                {
                   name: "curve";
                   type: "pubkey";
                },
                {
-                  name: "mint";
-                  type: "pubkey";
+                  name: "vault";
+                  type: "u8";
                },
-               {
-                  name: "seller";
-                  type: "pubkey";
-               },
-               {
-                  name: "tokensIn";
-                  type: "u64";
-               },
-               {
-                  name: "lamportsOut";
-                  type: "u64";
-               },
-               {
-                  name: "fee";
-                  type: "u64";
-               },
-               {
-                  name: "virtualSolReserves";
-                  type: "u64";
-               },
-               {
-                  name: "virtualTokenReserves";
-                  type: "u64";
-               },
-            ];
-         };
-      },
-      {
-         name: "treasuryWithdrawn";
-         type: {
-            kind: "struct";
-            fields: [
                {
                   name: "destination";
                   type: "pubkey";
@@ -3502,29 +4437,6 @@ export type Mostro = {
                {
                   name: "amount";
                   type: "u64";
-               },
-               {
-                  name: "usdc";
-                  type: "bool";
-               },
-            ];
-         };
-      },
-      {
-         name: "updateAuthority";
-         type: {
-            kind: "enum";
-            variants: [
-               {
-                  name: "none";
-               },
-               {
-                  name: "address";
-                  fields: ["pubkey"];
-               },
-               {
-                  name: "collection";
-                  fields: ["pubkey"];
                },
             ];
          };

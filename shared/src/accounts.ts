@@ -4,27 +4,52 @@
  *
  * Offsets used in `memcmp` filters are computed from the field order in `state.rs` plus the 8-byte
  * Anchor discriminator:
- *   Receipt: disc(8) bump(1) version(1) buyer(32) perk(32) artist(32) asset(32) ...
- *   Perk:    disc(8) bump(1) version(1) index(4) artist(32) mint(32) collection(32) ...
- *   Artist:  disc(8) bump(1) version(1) index(4) authority(32) ...
- *   Curve:   disc(8) bump(1) version(1) index(4) mint(32) ...
+ *   Receipt:  disc(8) bump(1) version(1) buyer(32) perk(32) artist(32) asset(32) ...
+ *   Perk:     disc(8) bump(1) version(1) index(4) artist(32) mint(32) collection(32) ...
+ *   Artist:   disc(8) bump(1) version(1) index(4) authority(32) curve(32) ...
+ *   Curve:    disc(8) bump(1) version(1) index(4) artist(32) mint(32) ...
+ *   Proposal: disc(8) bump(1) index(8) proposer(32) kind(1) ...
+ *   Approval: disc(8) bump(1) proposal(32) member(32) ...
+ *   Member:   disc(8) bump(1) wallet(32) role(1) ...
  */
 import { IdlAccounts, IdlTypes } from "@coral-xyz/anchor";
 import { Connection, GetProgramAccountsFilter, PublicKey } from "@solana/web3.js";
 import { getMint, Mint, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import BN from "bn.js";
-import { applyDiscount } from "./curve";
 import type { Mostro } from "../types/mostro";
 import { MostroProgram } from "./program";
-import { artistPda, configPda, curvePda, kycPda, mintPda, perkPda, receiptPda, treasuryPda, treasuryUsdcAta, solVaultPda, rewardsVaultPda, artistVaultPda } from "./pda";
-import { BPS_DENOMINATOR, PerkKindCode, TIER_VIP } from "./constants";
+import {
+   artistPda,
+   artistReservePda,
+   blacklistPda,
+   configPda,
+   curvePda,
+   curveVaultPda,
+   dexReservePda,
+   memberPda,
+   mintPda,
+   mostroReservePda,
+   perkPda,
+   proposalPda,
+   receiptPda,
+   rewardsVaultPda,
+   solVaultPda,
+   spendPda,
+   treasuryPda,
+   treasuryUsdcAta,
+} from "./pda";
+import { PerkKindCode, ROLE_NONE, ROLE_WEIGHT, SPEND_PERIOD_SECS, THRESHOLD_PERCENT, TIER_VIP } from "./constants";
 
 export type ConfigAccount = IdlAccounts<Mostro>["config"];
 export type CurveAccount = IdlAccounts<Mostro>["curve"];
 export type ArtistAccount = IdlAccounts<Mostro>["artist"];
 export type PerkAccount = IdlAccounts<Mostro>["perk"];
 export type ReceiptAccount = IdlAccounts<Mostro>["receipt"];
-export type KycAccount = IdlAccounts<Mostro>["kyc"];
+export type BlacklistAccount = IdlAccounts<Mostro>["blacklist"];
+export type MemberAccount = IdlAccounts<Mostro>["member"];
+export type ProposalAccount = IdlAccounts<Mostro>["proposal"];
+export type ApprovalAccount = IdlAccounts<Mostro>["approval"];
+export type SpendTrackerAccount = IdlAccounts<Mostro>["spendTracker"];
 export type PerkKind = IdlTypes<Mostro>["perkKind"];
 
 export interface WithKey<T> {
@@ -36,8 +61,11 @@ export interface WithKey<T> {
 export const OFFSETS = {
    receipt: { buyer: 10, perk: 42, artist: 74, asset: 106 },
    perk: { index: 10, artist: 14, mint: 46, collection: 78 },
-   artist: { index: 10, authority: 14 },
-   curve: { index: 10, mint: 14 },
+   artist: { index: 10, authority: 14, curve: 46 },
+   curve: { index: 10, artist: 14, mint: 46 },
+   proposal: { index: 9, proposer: 17, kind: 49 },
+   approval: { proposal: 9, member: 41 },
+   member: { wallet: 9, role: 41 },
 } as const;
 
 // ---- enum helpers ------------------------------------------------------------------------------
@@ -70,18 +98,25 @@ export function perkKindArg(name: PerkKindName): PerkKind {
    return { [name]: {} } as unknown as PerkKind;
 }
 
-export function isPassPerk(perk: PerkAccount): boolean {
+export function isPassPerk(perk: Pick<PerkAccount, "kind">): boolean {
    return perkKindName(perk.kind) === "pass";
 }
 
-export function isVipPass(perk: PerkAccount): boolean {
+export function isVipPass(perk: Pick<PerkAccount, "kind" | "tier">): boolean {
    return isPassPerk(perk) && perk.tier === TIER_VIP;
 }
 
-/** Pass label for UI ("Standard" / "VIP"); `null` for non-pass perks. */
-export function passTierLabel(perk: Pick<PerkAccount, "kind" | "tier">): "Standard" | "VIP" | null {
+/** Pass label for UI ("Classic" / "VIP"); `null` for non-pass perks. */
+export function passTierLabel(perk: Pick<PerkAccount, "kind" | "tier">): "Classic" | "VIP" | null {
    if (perkKindName(perk.kind) !== "pass") return null;
-   return perk.tier === TIER_VIP ? "VIP" : "Standard";
+   return perk.tier === TIER_VIP ? "VIP" : "Classic";
+}
+
+/** How a perk is paid: `"tokens"` -> `redeem_perk`, `"sol"` -> `buy_perk_sol` (hybrid). */
+export type PerkPayment = "tokens" | "sol";
+
+export function perkPayment(perk: Pick<PerkAccount, "priceTokens" | "priceLamports">): PerkPayment {
+   return new BN(perk.priceLamports).gtn(0) ? "sol" : "tokens";
 }
 
 // ---- single fetches ----------------------------------------------------------------------------
@@ -117,8 +152,29 @@ export async function fetchReceipt(program: MostroProgram, receiptOrAsset: Publi
    return program.account.receipt.fetch(key);
 }
 
-export async function fetchKyc(program: MostroProgram, wallet: PublicKey): Promise<KycAccount | null> {
-   return program.account.kyc.fetchNullable(kycPda(wallet, program.programId)[0]);
+/** `null` when the wallet was never blacklisted; check `.blocked` otherwise. */
+export async function fetchBlacklist(program: MostroProgram, wallet: PublicKey): Promise<BlacklistAccount | null> {
+   return program.account.blacklist.fetchNullable(blacklistPda(wallet, program.programId)[0]);
+}
+
+/** True when the wallet currently cannot buy or redeem. */
+export async function isBlacklisted(program: MostroProgram, wallet: PublicKey): Promise<boolean> {
+   const e = await fetchBlacklist(program, wallet);
+   return !!e && e.blocked;
+}
+
+/** `null` when the wallet never was a member; a removed member has `role == ROLE_NONE`. */
+export async function fetchMember(program: MostroProgram, wallet: PublicKey): Promise<MemberAccount | null> {
+   return program.account.member.fetchNullable(memberPda(wallet, program.programId)[0]);
+}
+
+export async function fetchProposal(program: MostroProgram, proposal: number | BN | PublicKey): Promise<ProposalAccount> {
+   const key = proposal instanceof PublicKey ? proposal : proposalPda(proposal, program.programId)[0];
+   return program.account.proposal.fetch(key);
+}
+
+export async function fetchSpend(program: MostroProgram, curve: PublicKey, wallet: PublicKey): Promise<SpendTrackerAccount | null> {
+   return program.account.spendTracker.fetchNullable(spendPda(curve, wallet, program.programId)[0]);
 }
 
 /** Live mint (supply, decimals). Pass the token program the curve was created with (default Tokenkeg). */
@@ -177,6 +233,23 @@ export async function listReceiptsByArtist(program: MostroProgram, artist: Publi
    return all.sort((a, b) => b.account.ts.cmp(a.account.ts));
 }
 
+/** Current governance members (role != none), super-admins first. */
+export async function listMembers(program: MostroProgram): Promise<WithKey<MemberAccount>[]> {
+   const all = await program.account.member.all();
+   return all.filter((m) => m.account.role !== ROLE_NONE).sort((a, b) => b.account.role - a.account.role);
+}
+
+/** Proposals, newest first. `openOnly` drops executed, cancelled and expired ones. */
+export async function listProposals(program: MostroProgram, openOnly = false, now: number = Math.floor(Date.now() / 1000)): Promise<WithKey<ProposalAccount>[]> {
+   const all = await program.account.proposal.all();
+   return all.filter((p) => !openOnly || proposalStatus(p.account, now) === "open").sort((a, b) => b.account.index.cmp(a.account.index));
+}
+
+/** Approvals of one proposal. */
+export async function listApprovals(program: MostroProgram, proposal: PublicKey): Promise<WithKey<ApprovalAccount>[]> {
+   return program.account.approval.all([memcmp(OFFSETS.approval.proposal, proposal)]);
+}
+
 // ---- aggregates for the UI ----------------------------------------------------------------------
 
 export interface ProtocolAddresses {
@@ -199,30 +272,43 @@ export interface CurveSnapshot {
    curve: PublicKey;
    account: CurveAccount;
    mint: Mint;
+   curveVault: PublicKey;
+   artistReserve: PublicKey;
+   mostroReserve: PublicKey;
+   dexReserve: PublicKey;
    solVault: PublicKey;
    rewardsVault: PublicKey;
 }
 
 /** Curve account + live mint in one call: everything the token page needs. */
 export async function fetchCurveSnapshot(program: MostroProgram, curveIndex: number, tokenProgram: PublicKey = TOKEN_PROGRAM_ID): Promise<CurveSnapshot> {
-   const curve = curvePda(curveIndex, program.programId)[0];
-   const mint = mintPda(curveIndex, program.programId)[0];
+   const pid = program.programId;
+   const curve = curvePda(curveIndex, pid)[0];
+   const mint = mintPda(curveIndex, pid)[0];
    const [account, mintInfo] = await Promise.all([program.account.curve.fetch(curve), getMint(program.provider.connection, mint, "confirmed", tokenProgram)]);
-   return { curve, account, mint: mintInfo, solVault: solVaultPda(curve, program.programId)[0], rewardsVault: rewardsVaultPda(curve, program.programId)[0] };
+   return {
+      curve,
+      account,
+      mint: mintInfo,
+      curveVault: curveVaultPda(curve, pid)[0],
+      artistReserve: artistReservePda(curve, pid)[0],
+      mostroReserve: mostroReservePda(curve, pid)[0],
+      dexReserve: dexReservePda(curve, pid)[0],
+      solVault: solVaultPda(curve, pid)[0],
+      rewardsVault: rewardsVaultPda(curve, pid)[0],
+   };
 }
 
 export interface ArtistSnapshot {
    artist: PublicKey;
    account: ArtistAccount;
    perks: WithKey<PerkAccount>[];
-   /** Artist vault for `mint`, derived (may not exist until the first perk is created). */
-   artistVault: PublicKey;
 }
 
-export async function fetchArtistSnapshot(program: MostroProgram, artistIndex: number, mint: PublicKey): Promise<ArtistSnapshot> {
+export async function fetchArtistSnapshot(program: MostroProgram, artistIndex: number): Promise<ArtistSnapshot> {
    const artist = artistPda(artistIndex, program.programId)[0];
    const [account, perks] = await Promise.all([program.account.artist.fetch(artist), listPerks(program, artist)]);
-   return { artist, account, perks, artistVault: artistVaultPda(artist, mint, program.programId)[0] };
+   return { artist, account, perks };
 }
 
 /** Perk + its collection (read from the account; the PDA salt is not stored on-chain), for the perk card and for `findPassForBuyer`. */
@@ -231,7 +317,8 @@ export interface PerkSummary {
    collection: PublicKey;
    account: PerkAccount;
    kind: PerkKindName;
-   tierLabel: "Standard" | "VIP" | null;
+   tierLabel: "Classic" | "VIP" | null;
+   payment: PerkPayment;
    remaining: number | null;
    soldOut: boolean;
 }
@@ -244,24 +331,10 @@ export function summarizePerk(p: WithKey<PerkAccount>): PerkSummary {
       account: p.account,
       kind: perkKindName(p.account.kind),
       tierLabel: passTierLabel(p.account),
+      payment: perkPayment(p.account),
       remaining,
       soldOut: remaining === 0,
    };
-}
-
-/**
- * Does a perk split pass `create_perk` / `set_perk`? Mirrors the on-chain checks: `burn + rewards <= 10_000`,
- * `burn >= config.minBurnBps`, `rewards >= config.minRewardsBps`. All three fail with `InvalidBps` on-chain.
- */
-export function checkPerkSplit(
-   config: Pick<ConfigAccount, "minBurnBps" | "minRewardsBps">,
-   burnBps: number,
-   rewardsBps: number,
-): { ok: boolean; reason: "SumExceeds" | "BurnBelowFloor" | "RewardsBelowFloor" | null } {
-   if (burnBps + rewardsBps > BPS_DENOMINATOR) return { ok: false, reason: "SumExceeds" };
-   if (burnBps < config.minBurnBps) return { ok: false, reason: "BurnBelowFloor" };
-   if (rewardsBps < config.minRewardsBps) return { ok: false, reason: "RewardsBelowFloor" };
-   return { ok: true, reason: null };
 }
 
 /** Can `signer` call `create_perk` with this kind? Pass perks are admin-only; the rest accept the artist authority or the admin. */
@@ -277,49 +350,101 @@ export function canSetPerk(config: Pick<ConfigAccount, "admin">, artist: Pick<Ar
 
 /**
  * Can `signer` call `set_artist` with these fields? Name / URI / active: artist authority or admin. Handing the
- * artist over (`authority` set) is reserved to the current authority, so the admin cannot reach the vault by rotation.
+ * artist over (`authority` set) is reserved to the current authority, so the admin cannot redirect its SOL income.
  */
 export function canSetArtist(config: Pick<ConfigAccount, "admin">, artist: Pick<ArtistAccount, "authority">, signer: PublicKey, changesAuthority: boolean): boolean {
    if (signer.equals(artist.authority)) return true;
    return !changesAuthority && signer.equals(config.admin);
 }
 
-/**
- * Effective redeem price exactly as `redeem_perk` computes it: `perk.price` minus the pass-tier discount when
- * `perk.discountEligible`, floor-rounded. Pass the result as `max_paid`; no margin is needed, the number is
- * deterministic for a given perk/config/pass state.
- */
-export function expectedPaid(
-   config: Pick<ConfigAccount, "standardDiscountBps" | "vipDiscountBps">,
-   perk: Pick<PerkAccount, "price" | "discountEligible">,
-   passTier: number | null,
-): { paid: BN; discountBps: number } {
-   const discountBps = passTier === null || !perk.discountEligible ? 0 : passTier === TIER_VIP ? config.vipDiscountBps : config.standardDiscountBps;
-   return { paid: applyDiscount(perk.price, discountBps), discountBps };
+/** Mirrors `create_perk` / `set_perk`: exactly one of the two prices must be non-zero, else `InvalidPerkPrice`. */
+export function checkPerkPrice(priceTokens: BN | number | string, priceLamports: BN | number | string): boolean {
+   return new BN(priceTokens).gtn(0) !== new BN(priceLamports).gtn(0);
 }
 
 /**
- * Can `wallet` redeem `perk` right now? Mirrors the checks in `redeem_perk` (pause, active,
- * supply, VIP gate, early access) so the UI can disable the button with the right reason.
- * `passPerkActive` is the `active` flag of the pass perk being presented: the program rejects an
- * inactive pass tier with `PerkInactive`, so a pass from a retired tier gives no benefits.
+ * Can `wallet` redeem or buy `perk` right now? Mirrors the gates of `redeem_perk` / `buy_perk_sol`
+ * (circuit breakers, active flags, supply, start time, blacklist) so the UI can disable the button with
+ * the right reason. For SOL-priced perks the curve must also be open (`curveEligibility`).
  */
 export function redeemEligibility(
-   config: Pick<ConfigAccount, "paused" | "standardEarlySecs" | "vipEarlySecs">,
-   perk: Pick<PerkAccount, "active" | "maxSupply" | "sold" | "vipOnly" | "publicStartTs">,
+   config: Pick<ConfigAccount, "redeemsPaused" | "buysPaused">,
+   perk: Pick<PerkAccount, "active" | "maxSupply" | "sold" | "publicStartTs" | "priceLamports" | "priceTokens">,
    artistActive: boolean,
-   passTier: number | null,
+   blacklisted = false,
+   curve: Pick<CurveAccount, "complete" | "saleStartTs"> | null = null,
    now: number = Math.floor(Date.now() / 1000),
-   passPerkActive = true,
 ): { ok: boolean; reason: string | null; opensAt: number } {
-   const earlySecs = passTier === null ? 0 : passTier === TIER_VIP ? config.vipEarlySecs : config.standardEarlySecs;
-   const opensAt = Math.max(0, perk.publicStartTs.toNumber() - earlySecs);
-   if (config.paused) return { ok: false, reason: "Paused", opensAt };
-   if (passTier !== null && !passPerkActive) return { ok: false, reason: "PassPerkInactive", opensAt };
+   const opensAt = perk.publicStartTs.toNumber();
+   if (config.redeemsPaused) return { ok: false, reason: "RedeemsPaused", opensAt };
+   if (blacklisted) return { ok: false, reason: "Blacklisted", opensAt };
    if (!artistActive) return { ok: false, reason: "ArtistInactive", opensAt };
    if (!perk.active) return { ok: false, reason: "PerkInactive", opensAt };
    if (perk.maxSupply !== 0 && perk.sold >= perk.maxSupply) return { ok: false, reason: "PerkSoldOut", opensAt };
-   if (perk.vipOnly && passTier !== TIER_VIP) return { ok: false, reason: "VipOnly", opensAt };
+   if (now < opensAt) return { ok: false, reason: "SaleNotStarted", opensAt };
+   if (perkPayment(perk) === "sol") {
+      if (config.buysPaused) return { ok: false, reason: "BuysPaused", opensAt };
+      if (curve) {
+         const c = curveEligibility(config, curve, blacklisted, now);
+         if (!c.ok) return { ok: false, reason: c.reason, opensAt: Math.max(opensAt, c.opensAt) };
+      }
+   }
+   return { ok: true, reason: null, opensAt };
+}
+
+/** Can anyone buy on this curve right now? Mirrors `check_can_buy` (pause, completion, cool-down, blacklist). */
+export function curveEligibility(
+   config: Pick<ConfigAccount, "buysPaused">,
+   curve: Pick<CurveAccount, "complete" | "saleStartTs">,
+   blacklisted = false,
+   now: number = Math.floor(Date.now() / 1000),
+): { ok: boolean; reason: string | null; opensAt: number } {
+   const opensAt = curve.saleStartTs.toNumber();
+   if (config.buysPaused) return { ok: false, reason: "BuysPaused", opensAt };
+   if (blacklisted) return { ok: false, reason: "Blacklisted", opensAt };
+   if (curve.complete) return { ok: false, reason: "CurveComplete", opensAt };
    if (now < opensAt) return { ok: false, reason: "SaleNotStarted", opensAt };
    return { ok: true, reason: null, opensAt };
+}
+
+/**
+ * Lamports a wallet can still put into a curve in the current 30-day period, or `null` when the cap is off.
+ * `spend` is the fetched `SpendTracker` (or `null` before the first buy).
+ */
+export function remainingSpend(
+   config: Pick<ConfigAccount, "maxSpendPerPeriodLamports">,
+   spend: Pick<SpendTrackerAccount, "period" | "spentLamports"> | null,
+   now: number = Math.floor(Date.now() / 1000),
+): BN | null {
+   const cap = new BN(config.maxSpendPerPeriodLamports);
+   if (cap.isZero()) return null;
+   const period = Math.floor(now / SPEND_PERIOD_SECS);
+   const spent = spend && spend.period.toNumber() === period ? new BN(spend.spentLamports) : new BN(0);
+   const left = cap.sub(spent);
+   return left.isNeg() ? new BN(0) : left;
+}
+
+// ---- governance helpers ----------------------------------------------------------------------------
+
+export type ProposalStatus = "open" | "executed" | "cancelled" | "expired";
+
+export function proposalStatus(p: Pick<ProposalAccount, "executed" | "cancelled" | "expiresTs">, now: number = Math.floor(Date.now() / 1000)): ProposalStatus {
+   if (p.executed) return "executed";
+   if (p.cancelled) return "cancelled";
+   if (now > p.expiresTs.toNumber()) return "expired";
+   return "open";
+}
+
+/** Mirrors `state::meets_threshold`: strictly more than 51 % of the live total weight. */
+export function meetsThreshold(approvedWeight: number, totalWeight: number): boolean {
+   return totalWeight > 0 && approvedWeight * 100 > totalWeight * THRESHOLD_PERCENT;
+}
+
+/** Smallest approved weight that passes with the given total. */
+export function weightNeeded(totalWeight: number): number {
+   return Math.floor((totalWeight * THRESHOLD_PERCENT) / 100) + 1;
+}
+
+export function roleWeight(role: number): number {
+   return ROLE_WEIGHT[role] ?? 0;
 }
