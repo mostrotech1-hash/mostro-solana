@@ -1,9 +1,13 @@
+//! Protocol configuration and the operator ("admin") key.
+//!
+//! The admin is the hot operational key: it sets fees and prices, flips the circuit breakers,
+//! manages the blacklist and onboards artists. It cannot move tokens out of cold vaults or SOL
+//! out of the treasury; those go through `governance.rs`.
+
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token_interface::{
-    transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
-};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::errors::MostroError;
 use crate::events::*;
@@ -11,6 +15,7 @@ use crate::state::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct InitializeConfigArgs {
+    /// Operator key and founding super-admin of the multisig.
     pub admin: Pubkey,
     pub fee_bps: u16,
     pub sol_usd_price_e6: u64,
@@ -18,12 +23,16 @@ pub struct InitializeConfigArgs {
     pub pyth_sol_usd_account: Pubkey,
     pub pyth_feed_id: [u8; 32],
     pub admin_cooloff_secs: u32,
-    pub min_burn_bps: u16,
-    pub min_rewards_bps: u16,
     pub admin_price_max_age_secs: u32,
+    /// Seconds between a token's first mint and the opening of its curve (product: 24 h).
+    pub launch_cooldown_secs: u32,
+    /// Anti-whale cap in lamports per wallet, per curve, per 30-day period. 0 = off.
+    pub max_spend_per_period_lamports: u64,
+    pub proposal_ttl_secs: u32,
 }
 
 #[derive(Accounts)]
+#[instruction(args: InitializeConfigArgs)]
 pub struct InitializeConfig<'info> {
     /// Must be the program's upgrade authority so nobody can front-run the init.
     #[account(mut)]
@@ -48,6 +57,15 @@ pub struct InitializeConfig<'info> {
         associated_token::token_program = usdc_token_program,
     )]
     pub treasury_usdc: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// The admin becomes the first governance member (super-admin, weight 2).
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + Member::INIT_SPACE,
+        seeds = [MEMBER_SEED, args.admin.as_ref()],
+        bump,
+    )]
+    pub admin_member: Box<Account<'info, Member>>,
     #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
     pub program: Program<'info, crate::program::Mostro>,
     #[account(constraint = program_data.upgrade_authority_address == Some(payer.key()) @ MostroError::Unauthorized)]
@@ -60,13 +78,10 @@ pub struct InitializeConfig<'info> {
 pub fn initialize_config(ctx: Context<InitializeConfig>, args: InitializeConfigArgs) -> Result<()> {
     require!(args.fee_bps <= 1_000, MostroError::InvalidBps);
     require!(
-        args.min_burn_bps as u64 + args.min_rewards_bps as u64 <= BPS_DENOMINATOR,
-        MostroError::InvalidBps
-    );
-    require!(
         args.admin_price_max_age_secs > 0,
         MostroError::InvalidAmount
     );
+    require!(args.proposal_ttl_secs > 0, MostroError::InvalidAmount);
     // Rent-floor the treasury so fee transfers smaller than the floor never fail.
     transfer(
         CpiContext::new(
@@ -78,9 +93,10 @@ pub fn initialize_config(ctx: Context<InitializeConfig>, args: InitializeConfigA
         ),
         Rent::get()?.minimum_balance(0),
     )?;
+    let now = Clock::get()?.unix_timestamp;
     let c = &mut ctx.accounts.config;
     c.bump = ctx.bumps.config;
-    c.version = 1;
+    c.version = 2;
     c.admin = args.admin;
     c.pending_admin = Pubkey::default();
     c.admin_transfer_ready_ts = 0;
@@ -88,49 +104,58 @@ pub fn initialize_config(ctx: Context<InitializeConfig>, args: InitializeConfigA
     c.usdc_mint = ctx.accounts.usdc_mint.key();
     c.treasury_bump = ctx.bumps.treasury;
     c.fee_bps = args.fee_bps;
-    c.paused = false;
-    c.kyc_required = false;
+    c.buys_paused = false;
+    c.redeems_paused = false;
     c.price_mode = PRICE_MODE_ADMIN;
     c.sol_usd_price_e6 = args.sol_usd_price_e6;
-    c.price_updated_ts = Clock::get()?.unix_timestamp;
+    c.price_updated_ts = now;
     c.pyth_sol_usd_account = args.pyth_sol_usd_account;
     c.pyth_feed_id = args.pyth_feed_id;
     c.max_price_age_secs = args.max_price_age_secs;
-    // Product defaults: Standard 5% / 24 h, VIP 15% / 72 h.
-    c.standard_discount_bps = 500;
-    c.vip_discount_bps = 1_500;
-    c.standard_early_secs = 86_400;
-    c.vip_early_secs = 259_200;
+    c.admin_price_max_age_secs = args.admin_price_max_age_secs;
+    c.launch_cooldown_secs = args.launch_cooldown_secs;
+    c.max_spend_per_period_lamports = args.max_spend_per_period_lamports;
+    c.proposal_ttl_secs = args.proposal_ttl_secs;
+    c.total_weight = WEIGHT_SUPER_ADMIN;
+    c.member_count = 1;
+    c.proposal_count = 0;
     c.curve_count = 0;
     c.artist_count = 0;
-    c.min_burn_bps = args.min_burn_bps;
-    c.min_rewards_bps = args.min_rewards_bps;
-    c.admin_price_max_age_secs = args.admin_price_max_age_secs;
+
+    let m = &mut ctx.accounts.admin_member;
+    m.bump = ctx.bumps.admin_member;
+    m.wallet = args.admin;
+    m.role = ROLE_SUPER_ADMIN;
+    m.updated_ts = now;
+
     emit!(ConfigInitialized {
         admin: c.admin,
         usdc_mint: c.usdc_mint,
         fee_bps: c.fee_bps,
+        launch_cooldown_secs: c.launch_cooldown_secs,
+    });
+    emit!(MemberUpdated {
+        wallet: args.admin,
+        role: ROLE_SUPER_ADMIN,
+        total_weight: c.total_weight,
     });
     Ok(())
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
 pub struct SetConfigArgs {
-    pub paused: Option<bool>,
-    pub kyc_required: Option<bool>,
+    pub buys_paused: Option<bool>,
+    pub redeems_paused: Option<bool>,
     pub price_mode: Option<u8>,
     pub sol_usd_price_e6: Option<u64>,
     pub pyth_sol_usd_account: Option<Pubkey>,
     pub pyth_feed_id: Option<[u8; 32]>,
     pub max_price_age_secs: Option<u32>,
-    pub fee_bps: Option<u16>,
-    pub standard_discount_bps: Option<u16>,
-    pub vip_discount_bps: Option<u16>,
-    pub standard_early_secs: Option<u32>,
-    pub vip_early_secs: Option<u32>,
-    pub min_burn_bps: Option<u16>,
-    pub min_rewards_bps: Option<u16>,
     pub admin_price_max_age_secs: Option<u32>,
+    pub fee_bps: Option<u16>,
+    pub launch_cooldown_secs: Option<u32>,
+    pub max_spend_per_period_lamports: Option<u64>,
+    pub proposal_ttl_secs: Option<u32>,
 }
 
 #[derive(Accounts)]
@@ -143,11 +168,11 @@ pub struct AdminOnly<'info> {
 pub fn set_config(ctx: Context<AdminOnly>, args: SetConfigArgs) -> Result<()> {
     let c = &mut ctx.accounts.config;
     let now = Clock::get()?.unix_timestamp;
-    if let Some(v) = args.paused {
-        c.paused = v;
+    if let Some(v) = args.buys_paused {
+        c.buys_paused = v;
     }
-    if let Some(v) = args.kyc_required {
-        c.kyc_required = v;
+    if let Some(v) = args.redeems_paused {
+        c.redeems_paused = v;
     }
     if let Some(v) = args.price_mode {
         require!(v <= PRICE_MODE_PYTH, MostroError::InvalidPriceAccount);
@@ -167,43 +192,58 @@ pub fn set_config(ctx: Context<AdminOnly>, args: SetConfigArgs) -> Result<()> {
     if let Some(v) = args.max_price_age_secs {
         c.max_price_age_secs = v;
     }
-    if let Some(v) = args.fee_bps {
-        require!(v <= 1_000, MostroError::InvalidBps);
-        c.fee_bps = v;
-    }
-    if let Some(v) = args.standard_discount_bps {
-        require!(v as u64 <= BPS_DENOMINATOR, MostroError::InvalidBps);
-        c.standard_discount_bps = v;
-    }
-    if let Some(v) = args.vip_discount_bps {
-        require!(v as u64 <= BPS_DENOMINATOR, MostroError::InvalidBps);
-        c.vip_discount_bps = v;
-    }
-    if let Some(v) = args.standard_early_secs {
-        c.standard_early_secs = v;
-    }
-    if let Some(v) = args.vip_early_secs {
-        c.vip_early_secs = v;
-    }
-    let min_burn = args.min_burn_bps.unwrap_or(c.min_burn_bps);
-    let min_rewards = args.min_rewards_bps.unwrap_or(c.min_rewards_bps);
-    require!(
-        min_burn as u64 + min_rewards as u64 <= BPS_DENOMINATOR,
-        MostroError::InvalidBps
-    );
-    c.min_burn_bps = min_burn;
-    c.min_rewards_bps = min_rewards;
     if let Some(v) = args.admin_price_max_age_secs {
         require!(v > 0, MostroError::InvalidAmount);
         c.admin_price_max_age_secs = v;
     }
+    if let Some(v) = args.fee_bps {
+        require!(v <= 1_000, MostroError::InvalidBps);
+        c.fee_bps = v;
+    }
+    if let Some(v) = args.launch_cooldown_secs {
+        c.launch_cooldown_secs = v;
+    }
+    if let Some(v) = args.max_spend_per_period_lamports {
+        c.max_spend_per_period_lamports = v;
+    }
+    if let Some(v) = args.proposal_ttl_secs {
+        require!(v > 0, MostroError::InvalidAmount);
+        c.proposal_ttl_secs = v;
+    }
     emit!(ConfigUpdated {
         admin: c.admin,
-        paused: c.paused,
+        buys_paused: c.buys_paused,
+        redeems_paused: c.redeems_paused,
         price_mode: c.price_mode,
         sol_usd_price_e6: c.sol_usd_price_e6,
         fee_bps: c.fee_bps,
-        kyc_required: c.kyc_required,
+        launch_cooldown_secs: c.launch_cooldown_secs,
+        max_spend_per_period_lamports: c.max_spend_per_period_lamports,
+    });
+    Ok(())
+}
+
+/// Circuit breaker. Any governance member can stop buys and redeems at once; only the admin can
+/// resume them (`set_config`). Pausing is idempotent.
+#[derive(Accounts)]
+pub struct EmergencyPause<'info> {
+    pub member_wallet: Signer<'info>,
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, Config>,
+    #[account(
+        seeds = [MEMBER_SEED, member_wallet.key().as_ref()],
+        bump = member.bump,
+        constraint = member.role != ROLE_NONE @ MostroError::NotAMember,
+    )]
+    pub member: Account<'info, Member>,
+}
+
+pub fn emergency_pause(ctx: Context<EmergencyPause>) -> Result<()> {
+    let c = &mut ctx.accounts.config;
+    c.buys_paused = true;
+    c.redeems_paused = true;
+    emit!(EmergencyPaused {
+        by: ctx.accounts.member_wallet.key(),
     });
     Ok(())
 }
@@ -262,9 +302,11 @@ pub fn accept_admin(ctx: Context<AcceptAdmin>) -> Result<()> {
     Ok(())
 }
 
+/// Every wallet is allowed by default (no on-chain KYC: identity runs at the Openfort / Sumsub
+/// layer). The admin can block a wallet; blocked wallets cannot buy on any curve or redeem perks.
 #[derive(Accounts)]
 #[instruction(wallet: Pubkey)]
-pub struct SetKyc<'info> {
+pub struct SetBlacklist<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
     #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = admin @ MostroError::Unauthorized)]
@@ -272,113 +314,33 @@ pub struct SetKyc<'info> {
     #[account(
         init_if_needed,
         payer = admin,
-        space = 8 + Kyc::INIT_SPACE,
-        seeds = [KYC_SEED, wallet.as_ref()],
+        space = 8 + Blacklist::INIT_SPACE,
+        seeds = [BLACKLIST_SEED, wallet.as_ref()],
         bump,
     )]
-    pub kyc: Account<'info, Kyc>,
+    pub entry: Account<'info, Blacklist>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn set_kyc(
-    ctx: Context<SetKyc>,
-    wallet: Pubkey,
-    approved: bool,
-    country: [u8; 2],
-) -> Result<()> {
-    let k = &mut ctx.accounts.kyc;
-    k.bump = ctx.bumps.kyc;
-    k.wallet = wallet;
-    k.approved = approved;
-    k.country = country;
-    k.updated_ts = Clock::get()?.unix_timestamp;
-    emit!(KycUpdated {
-        wallet,
-        approved,
-        country
-    });
+pub fn set_blacklist(ctx: Context<SetBlacklist>, wallet: Pubkey, blocked: bool) -> Result<()> {
+    let e = &mut ctx.accounts.entry;
+    e.bump = ctx.bumps.entry;
+    e.wallet = wallet;
+    e.blocked = blocked;
+    e.updated_ts = Clock::get()?.unix_timestamp;
+    emit!(BlacklistUpdated { wallet, blocked });
     Ok(())
 }
 
-#[derive(Accounts)]
-pub struct WithdrawTreasurySol<'info> {
-    pub admin: Signer<'info>,
-    #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = admin @ MostroError::Unauthorized)]
-    pub config: Account<'info, Config>,
-    #[account(mut, seeds = [TREASURY_SEED], bump = config.treasury_bump)]
-    pub treasury: SystemAccount<'info>,
-    /// CHECK: any destination chosen by the admin.
-    #[account(mut)]
-    pub destination: UncheckedAccount<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-pub fn withdraw_treasury_sol(ctx: Context<WithdrawTreasurySol>, amount: u64) -> Result<()> {
-    let floor = Rent::get()?.minimum_balance(0);
-    require!(
-        amount <= ctx.accounts.treasury.lamports().saturating_sub(floor),
-        MostroError::InsufficientReserves
-    );
-    let bump = ctx.accounts.config.treasury_bump;
-    let seeds: &[&[u8]] = &[TREASURY_SEED, &[bump]];
-    transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.system_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.treasury.to_account_info(),
-                to: ctx.accounts.destination.to_account_info(),
-            },
-            &[seeds],
-        ),
-        amount,
-    )?;
-    emit!(TreasuryWithdrawn {
-        destination: ctx.accounts.destination.key(),
-        amount,
-        usdc: false,
-    });
-    Ok(())
-}
-
-#[derive(Accounts)]
-pub struct WithdrawTreasuryUsdc<'info> {
-    pub admin: Signer<'info>,
-    #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = admin @ MostroError::Unauthorized, has_one = usdc_mint)]
-    pub config: Box<Account<'info, Config>>,
-    pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
-    #[account(
-        mut,
-        associated_token::mint = usdc_mint,
-        associated_token::authority = config,
-        associated_token::token_program = usdc_token_program,
-    )]
-    pub treasury_usdc: Box<InterfaceAccount<'info, TokenAccount>>,
-    #[account(mut, token::mint = usdc_mint, token::token_program = usdc_token_program)]
-    pub destination: Box<InterfaceAccount<'info, TokenAccount>>,
-    pub usdc_token_program: Interface<'info, TokenInterface>,
-}
-
-pub fn withdraw_treasury_usdc(ctx: Context<WithdrawTreasuryUsdc>, amount: u64) -> Result<()> {
-    let bump = ctx.accounts.config.bump;
-    let seeds: &[&[u8]] = &[CONFIG_SEED, &[bump]];
-    transfer_checked(
-        CpiContext::new_with_signer(
-            ctx.accounts.usdc_token_program.to_account_info(),
-            TransferChecked {
-                from: ctx.accounts.treasury_usdc.to_account_info(),
-                mint: ctx.accounts.usdc_mint.to_account_info(),
-                to: ctx.accounts.destination.to_account_info(),
-                authority: ctx.accounts.config.to_account_info(),
-            },
-            &[seeds],
-        ),
-        amount,
-        ctx.accounts.usdc_mint.decimals,
-    )?;
-    emit!(TreasuryWithdrawn {
-        destination: ctx.accounts.destination.key(),
-        amount,
-        usdc: true,
-    });
+/// Reads the blacklist entry that user instructions pass as a seeds-checked, possibly empty
+/// account. The seeds constraint guarantees the client cannot substitute another wallet's entry;
+/// an empty account means "never blacklisted".
+pub fn require_not_blacklisted(entry: &AccountInfo, program_id: &Pubkey) -> Result<()> {
+    if entry.owner != program_id || entry.data_is_empty() {
+        return Ok(());
+    }
+    let data = entry.try_borrow_data()?;
+    let b = Blacklist::try_deserialize(&mut &data[..])?;
+    require!(!b.blocked, MostroError::Blacklisted);
     Ok(())
 }

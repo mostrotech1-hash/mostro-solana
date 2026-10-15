@@ -6,7 +6,7 @@ export const PROGRAM_ID = new PublicKey("6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6o
 /** Metaplex Core program. Every redeemed perk is a Core asset inside the perk's Core collection. */
 export const MPL_CORE_PROGRAM_ID = new PublicKey("CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d");
 
-/** Metaplex Token Metadata program. `set_curve_metadata` creates the curve mint's metadata there so wallets show the symbol. */
+/** Metaplex Token Metadata program. `create_curve` creates the token's metadata there so wallets show the symbol. */
 export const TOKEN_METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
 /** Circle devnet USDC mint (6 decimals, classic Token program). */
@@ -24,11 +24,70 @@ export const PYTH_SOL_USD_FEED_ID_HEX = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8
 /** Pyth SOL/USD feed id as 32 bytes. */
 export const PYTH_SOL_USD_FEED_ID = Uint8Array.from(Buffer.from(PYTH_SOL_USD_FEED_ID_HEX, "hex"));
 
-/** $MOST (and every curve mint) has 6 decimals. */
-export const MOST_DECIMALS = 6;
+/** Every artist token has 6 decimals. */
+export const TOKEN_DECIMALS = 6;
 export const USDC_DECIMALS = 6;
 export const LAMPORTS_PER_SOL = 1_000_000_000;
 export const BPS_DENOMINATOR = 10_000;
+
+// ---- fixed supply (mirror `state.rs`) ---------------------------------------------------------------
+
+/** Base units in one whole token. */
+export const TOKEN_UNIT = "1000000";
+/** 1,000,000,000 whole tokens per artist, minted once in `create_curve`; the mint authority is then revoked. */
+export const TOTAL_SUPPLY = "1000000000000000";
+/** 28 %: sold on the bonding curve (hot vault `curve_vault`). Also `curve.supplyCap`. */
+export const CURVE_ALLOCATION = "280000000000000";
+/** 7 %: DEX liquidity reserve (cold vault `dex_reserve`). */
+export const DEX_ALLOCATION = "70000000000000";
+/** 15 %: Mostro reserve (cold vault `mostro_reserve`). */
+export const MOSTRO_ALLOCATION = "150000000000000";
+/** 50 %: artist reserve (cold vault `artist_reserve`), also the source of the artist half of hybrid perks. */
+export const ARTIST_ALLOCATION = "500000000000000";
+
+/** Fixed redeem split applied to every perk: 80 % burned, 20 % to the curve's rewards vault. */
+export const BURN_BPS = 8_000;
+export const REWARDS_BPS = 2_000;
+
+/** Anti-whale window length: `period = unix_time / SPEND_PERIOD_SECS`. */
+export const SPEND_PERIOD_SECS = 30 * 86_400;
+
+// ---- governance -------------------------------------------------------------------------------------
+
+/** `Member.role` and its voting weight. */
+export const ROLE_NONE = 0;
+export const ROLE_ADMIN = 1;
+export const ROLE_SUPER_ADMIN = 2;
+export const ROLE_WEIGHT: Record<number, number> = { [ROLE_NONE]: 0, [ROLE_ADMIN]: 1, [ROLE_SUPER_ADMIN]: 2 };
+/** A proposal executes when `approved * 100 > total * THRESHOLD_PERCENT`. */
+export const THRESHOLD_PERCENT = 51;
+
+/** `Proposal.kind`. */
+export const PROPOSAL_VAULT_TRANSFER = 0;
+export const PROPOSAL_SET_MEMBER = 1;
+
+/** `Proposal.vault` for vault transfers. Token vaults first, SOL vaults after. */
+export enum VaultKind {
+   ArtistReserve = 0,
+   MostroReserve = 1,
+   DexReserve = 2,
+   Rewards = 3,
+   Usdc = 4,
+   TreasuryUsdc = 5,
+   Sol = 6,
+   TreasurySol = 7,
+}
+/** Vaults that belong to a curve (the proposal names the curve); the rest belong to the treasury. */
+export const CURVE_VAULTS: ReadonlySet<number> = new Set([
+   VaultKind.ArtistReserve,
+   VaultKind.MostroReserve,
+   VaultKind.DexReserve,
+   VaultKind.Rewards,
+   VaultKind.Usdc,
+   VaultKind.Sol,
+]);
+/** Vaults moved with `execute_sol_transfer`; the others with `execute_token_transfer`. */
+export const SOL_VAULTS: ReadonlySet<number> = new Set([VaultKind.Sol, VaultKind.TreasurySol]);
 
 /** String limits enforced on-chain. */
 export const MAX_NAME = 32;
@@ -41,15 +100,22 @@ export const SEEDS = {
    treasury: Buffer.from("treasury"),
    curve: Buffer.from("curve"),
    mint: Buffer.from("mint"),
+   curveVault: Buffer.from("curve_vault"),
+   artistReserve: Buffer.from("artist_reserve"),
+   mostroReserve: Buffer.from("mostro_reserve"),
+   dexReserve: Buffer.from("dex_reserve"),
    solVault: Buffer.from("sol_vault"),
    rewards: Buffer.from("rewards"),
    artist: Buffer.from("artist"),
-   artistVault: Buffer.from("artist_vault"),
    perk: Buffer.from("perk"),
    collection: Buffer.from("collection"),
    asset: Buffer.from("asset"),
    receipt: Buffer.from("receipt"),
-   kyc: Buffer.from("kyc"),
+   blacklist: Buffer.from("blacklist"),
+   member: Buffer.from("member"),
+   proposal: Buffer.from("proposal"),
+   approval: Buffer.from("approval"),
+   spend: Buffer.from("spend"),
    /** Token Metadata program seed (not a seed of this program). */
    metadata: Buffer.from("metadata"),
 } as const;
@@ -79,43 +145,19 @@ export const DEVNET_PRICE_MAX_AGE = { adminPriceMaxAgeSecs: 86_400, maxPriceAgeS
 /** Pyth confidence ceiling enforced in price mode 1: `conf * 10_000 <= price * MAX_CONF_BPS`, else `PriceUncertain`. */
 export const MAX_PRICE_CONF_BPS = 200;
 
-/** `Perk.tier` for `PerkKind::Pass`. */
-export const TIER_STANDARD = 0;
+/** `Perk.tier` for `PerkKind::Pass`. Informational: pass benefits are applied by the web app. */
+export const TIER_CLASSIC = 0;
 export const TIER_VIP = 1;
 
-/** Product defaults written by `initialize_config` (also readable live from `Config`). */
-export const DEFAULT_PASS_BENEFITS = {
-   standardDiscountBps: 500,
-   vipDiscountBps: 1_500,
-   standardEarlySecs: 86_400,
-   vipEarlySecs: 259_200,
-} as const;
+/** Product value of `Config.launch_cooldown_secs`: the curve opens 24 h after the token is created. */
+export const PRODUCT_LAUNCH_COOLDOWN_SECS = 86_400;
 
-/** Default redeem split: burn 80%, rewards 20%, artist 0% (configurable per perk). */
-export const DEFAULT_REDEEM_SPLIT = { burnBps: 8_000, rewardsBps: 2_000 } as const;
-
-/**
- * Protocol floors every perk split must respect (`Config.min_burn_bps` / `min_rewards_bps`, settable with
- * `set_config`). The devnet seed writes 0 / 0; read the live values from `Config` before building `create_perk`.
- */
-export const DEFAULT_SPLIT_FLOORS = { minBurnBps: 0, minRewardsBps: 0 } as const;
-
-/** Demo curve parameters ("set B"): 30 SOL virtual, 1,000,000 tokens virtual, cap 800,000, fee 1%. */
+/** Demo curve parameters: 30 SOL virtual, 379,000,000 tokens virtual (cap is the fixed 280M allocation), fee 1 %. */
 export const DEMO_CURVE_PARAMS = {
    virtualSolReserves: "30000000000",
-   virtualTokenReserves: "1000000000000",
-   supplyCap: "800000000000",
+   virtualTokenReserves: "379000000000000",
+   supplyCap: CURVE_ALLOCATION,
    feeBps: 100,
-   saleStartTs: 0,
-} as const;
-
-/** Demo perk price points in $MOST base units (6 decimals). */
-export const DEMO_PERK_PRICES = {
-   passStandard: 1_200_000_000,
-   passVip: 3_750_000_000,
-   musicFrom: 50_000_000,
-   eventFrom: 900_000_000,
-   merchFrom: 1_500_000_000,
 } as const;
 
 /** Send parameters the fronts should use on devnet. */

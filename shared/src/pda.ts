@@ -47,6 +47,26 @@ export function mintPda(curveIndex: number, programId: PublicKey = PROGRAM_ID): 
    return PublicKey.findProgramAddressSync([SEEDS.mint, u32Le(curveIndex)], programId);
 }
 
+/** Hot vault: the 28 % sold on the curve. */
+export function curveVaultPda(curve: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
+   return PublicKey.findProgramAddressSync([SEEDS.curveVault, curve.toBuffer()], programId);
+}
+
+/** Cold vault: the artist's 50 %. */
+export function artistReservePda(curve: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
+   return PublicKey.findProgramAddressSync([SEEDS.artistReserve, curve.toBuffer()], programId);
+}
+
+/** Cold vault: Mostro's 15 %. */
+export function mostroReservePda(curve: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
+   return PublicKey.findProgramAddressSync([SEEDS.mostroReserve, curve.toBuffer()], programId);
+}
+
+/** Cold vault: the 7 % DEX liquidity reserve. */
+export function dexReservePda(curve: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
+   return PublicKey.findProgramAddressSync([SEEDS.dexReserve, curve.toBuffer()], programId);
+}
+
 export function solVaultPda(curve: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
    return PublicKey.findProgramAddressSync([SEEDS.solVault, curve.toBuffer()], programId);
 }
@@ -57,10 +77,6 @@ export function rewardsVaultPda(curve: PublicKey, programId: PublicKey = PROGRAM
 
 export function artistPda(artistIndex: number, programId: PublicKey = PROGRAM_ID): Pda {
    return PublicKey.findProgramAddressSync([SEEDS.artist, u32Le(artistIndex)], programId);
-}
-
-export function artistVaultPda(artist: PublicKey, mint: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
-   return PublicKey.findProgramAddressSync([SEEDS.artistVault, artist.toBuffer(), mint.toBuffer()], programId);
 }
 
 export function perkPda(artist: PublicKey, perkIndex: number, programId: PublicKey = PROGRAM_ID): Pda {
@@ -83,8 +99,29 @@ export function receiptPda(asset: PublicKey, programId: PublicKey = PROGRAM_ID):
    return PublicKey.findProgramAddressSync([SEEDS.receipt, asset.toBuffer()], programId);
 }
 
-export function kycPda(wallet: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
-   return PublicKey.findProgramAddressSync([SEEDS.kyc, wallet.toBuffer()], programId);
+/** Blacklist entry of a wallet. Always passed to buys and redeems; usually empty (not blacklisted). */
+export function blacklistPda(wallet: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
+   return PublicKey.findProgramAddressSync([SEEDS.blacklist, wallet.toBuffer()], programId);
+}
+
+/** Governance member record of a wallet. */
+export function memberPda(wallet: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
+   return PublicKey.findProgramAddressSync([SEEDS.member, wallet.toBuffer()], programId);
+}
+
+/** Proposal by index (`config.proposalCount` is the next index). */
+export function proposalPda(proposalIndex: U64Like, programId: PublicKey = PROGRAM_ID): Pda {
+   return PublicKey.findProgramAddressSync([SEEDS.proposal, u64Le(proposalIndex)], programId);
+}
+
+/** One member's approval of one proposal. */
+export function approvalPda(proposal: PublicKey, wallet: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
+   return PublicKey.findProgramAddressSync([SEEDS.approval, proposal.toBuffer(), wallet.toBuffer()], programId);
+}
+
+/** Anti-whale tracker of a wallet on a curve. */
+export function spendPda(curve: PublicKey, wallet: PublicKey, programId: PublicKey = PROGRAM_ID): Pda {
+   return PublicKey.findProgramAddressSync([SEEDS.spend, curve.toBuffer(), wallet.toBuffer()], programId);
 }
 
 /** Metaplex Token Metadata account of a mint: `["metadata", token_metadata_program, mint]` under the Token Metadata program. */
@@ -113,18 +150,34 @@ export interface CurveAddresses {
    curveBump: number;
    mint: PublicKey;
    mintBump: number;
+   curveVault: PublicKey;
+   artistReserve: PublicKey;
+   mostroReserve: PublicKey;
+   dexReserve: PublicKey;
    solVault: PublicKey;
    solVaultBump: number;
    rewardsVault: PublicKey;
-   rewardsVaultBump: number;
+   metadata: PublicKey;
 }
 
 export function deriveCurveAddresses(curveIndex: number, programId: PublicKey = PROGRAM_ID): CurveAddresses {
    const [curve, curveBump] = curvePda(curveIndex, programId);
    const [mint, mintBump] = mintPda(curveIndex, programId);
    const [solVault, solVaultBump] = solVaultPda(curve, programId);
-   const [rewardsVault, rewardsVaultBump] = rewardsVaultPda(curve, programId);
-   return { curve, curveBump, mint, mintBump, solVault, solVaultBump, rewardsVault, rewardsVaultBump };
+   return {
+      curve,
+      curveBump,
+      mint,
+      mintBump,
+      curveVault: curveVaultPda(curve, programId)[0],
+      artistReserve: artistReservePda(curve, programId)[0],
+      mostroReserve: mostroReservePda(curve, programId)[0],
+      dexReserve: dexReservePda(curve, programId)[0],
+      solVault,
+      solVaultBump,
+      rewardsVault: rewardsVaultPda(curve, programId)[0],
+      metadata: metadataPda(mint)[0],
+   };
 }
 
 /** Everything derivable for one perk from (artist index, perk index). */
