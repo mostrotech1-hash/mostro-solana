@@ -75,6 +75,11 @@ watch(tokens, () => {
 });
 
 onMounted(async () => {
+   await session.loadFeatures();
+   if (!session.chainEnabled) {
+      loading.value = false;
+      return;
+   }
    // Keep the identity-check state fresh so the buy button sends an unverified user to the check.
    void session.refreshKyc().catch(() => undefined);
    await refreshQuote();
@@ -131,7 +136,12 @@ async function buy() {
 <template>
    <AppShell title="Buy $MOST" back-to="/pass" :max-width="560">
       <div class="buy">
-         <template v-if="phase === 'done' || phase === 'pending'">
+         <UiStatus v-if="!session.chainEnabled" title="Buying $MOST opens soon" text="We are finishing the setup on Solana. Your account and identity check are ready.">
+            <UiButton v-if="session.needsKyc" to="/verify?next=/buy" variant="primary" block>Verify your identity</UiButton>
+            <UiButton to="/pass" variant="secondary" block>Back to the pass</UiButton>
+         </UiStatus>
+
+         <template v-else-if="phase === 'done' || phase === 'pending'">
             <UiStatus
                :title="phase === 'done' ? `You bought ${boughtTokens.toLocaleString('en-US')} $MOST` : 'Your purchase is on its way'"
                :text="phase === 'done' ? 'The tokens are in your Mostro wallet.' : 'The network has not confirmed it yet. You can check it on the explorer; nothing is charged twice.'"

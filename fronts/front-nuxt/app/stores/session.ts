@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { AccountTypeEnum, ChainTypeEnum, EmbeddedState, OAuthProvider, RecoveryMethod, type Openfort } from "@openfort/openfort-js";
-import type { EncryptionSessionResponse, KycAccessTokenResponse, KycStatus, KycStatusResponse, UserProfile } from "@mostro/shared/api";
+import type { EncryptionSessionResponse, FeaturesResponse, KycAccessTokenResponse, KycStatus, KycStatusResponse, UserProfile } from "@mostro/shared/api";
 
 export type SocialProvider = "google" | "apple" | "twitter";
 
@@ -128,6 +128,19 @@ export const useSessionStore = defineStore("session", () => {
       profile.value = await api<UserProfile>("/users/me/avatar", { method: "POST", body });
    }
 
+   /** Whether buying a pass or $MOST is open (the server turns it off while the Solana program is not ready). */
+   const chainEnabled = ref(true);
+
+   /** Asks the server what is open. If it cannot be reached, buying stays as it was. */
+   async function loadFeatures(): Promise<void> {
+      try {
+         const { chainEnabled: enabled } = await apiFetch<FeaturesResponse>(config.public.apiBase, null, "/features");
+         chainEnabled.value = enabled;
+      } catch {
+         // keep the last known value
+      }
+   }
+
    /** Identity check state, from the server (never from the widget). */
    const kycStatus = computed<KycStatus>(() => profile.value?.kycStatus ?? "none");
    /** Whether buying needs an approved check (the server decides; true until it says otherwise). */
@@ -173,6 +186,8 @@ export const useSessionStore = defineStore("session", () => {
       finishSocialLogin,
       saveName,
       uploadAvatar,
+      chainEnabled,
+      loadFeatures,
       kycStatus,
       kycRequired,
       needsKyc,

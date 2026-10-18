@@ -188,8 +188,14 @@ export interface BuildTokenPurchaseResponse {
    quote: TokenQuote;
 }
 
+/** GET /features (public): what the app can offer right now. */
+export interface FeaturesResponse {
+   /** `false` while the Solana program on the cluster is not the version the app expects: buying passes and $MOST is closed. */
+   chainEnabled: boolean;
+}
+
 /** Machine-readable `code` carried by some API errors, next to `message`. */
-export type ApiErrorCode = "QUOTE_CHANGED" | "PASS_PRICE_CHANGED" | "INSUFFICIENT_SOL" | "SPONSOR_UNAVAILABLE" | "WALLET_NOT_OWNED" | "RATE_LIMITED" | "KYC_UNAVAILABLE" | "KYC_REQUIRED";
+export type ApiErrorCode = "QUOTE_CHANGED" | "PASS_PRICE_CHANGED" | "INSUFFICIENT_SOL" | "SPONSOR_UNAVAILABLE" | "WALLET_NOT_OWNED" | "RATE_LIMITED" | "KYC_UNAVAILABLE" | "KYC_REQUIRED" | "CHAIN_UNAVAILABLE";
 
 /** Every error body the API returns. */
 export interface ApiError {

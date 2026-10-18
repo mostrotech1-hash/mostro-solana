@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Post, Query, UseGuards } from 
 import { TOKEN_PURCHASE_LIMITS, type BuildTokenPurchaseResponse, type TokenQuote } from "@mostro/shared/api";
 import { z } from "zod";
 import { AuthGuard } from "../../common/auth.guard";
+import { ChainEnabledGuard } from "../../common/chain-enabled.guard";
 import { CurrentIdentity, parseBody } from "../../common/http";
 import type { OpenfortIdentity } from "../../modules/openfort/openfort.service";
 import { BuildTokenPurchaseUseCase, GetTokenQuoteUseCase } from "./tokens.use-cases";
@@ -15,7 +16,7 @@ const buildSchema = z.object({
 });
 
 @Controller("tokens")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ChainEnabledGuard)
 export class TokensController {
    constructor(
       @Inject(GetTokenQuoteUseCase) private readonly getQuote: GetTokenQuoteUseCase,
