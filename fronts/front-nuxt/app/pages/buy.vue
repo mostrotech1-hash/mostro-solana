@@ -81,10 +81,12 @@ onMounted(async () => {
 });
 
 async function onBuy() {
-   if (!quote.value || buying.value) return;
+   if (buying.value) return;
    failure.value = "";
+   // The identity check comes first and does not depend on the price loading.
    await session.refreshKyc().catch(() => undefined);
    if (session.needsKyc) return void (await navigateTo("/verify?next=/buy"));
+   if (!quote.value) return;
    if (shortBy.value > 0n) {
       // Not enough SOL: pay the difference by card first (rounded up, never below what MoonPay sells).
       moonpaySol.value = Math.max(MIN_CARD_SOL, Math.ceil((Number(shortBy.value) / 1e9) * 100) / 100);
@@ -162,8 +164,8 @@ async function buy() {
             <p v-if="shortBy > 0n && quote" class="buy__note">Your wallet needs more SOL for this. After you confirm, you will pay the difference by card.</p>
             <p v-if="session.needsKyc" class="buy__note">You need to verify your identity before you can buy. We will take you there first.</p>
 
-            <UiButton variant="primary" block :loading="buying" :disabled="!quote || loading || !validAmount" @click="onBuy">
-               {{ buying ? "Buying…" : `Buy ${validAmount ? tokens.toLocaleString("en-US") : ""} $MOST` }}
+            <UiButton variant="primary" block :loading="buying" :disabled="!validAmount || (!session.needsKyc && (!quote || loading))" @click="onBuy">
+               {{ buying ? "Buying…" : session.needsKyc ? "Verify your identity to buy" : `Buy ${validAmount ? tokens.toLocaleString("en-US") : ""} $MOST` }}
             </UiButton>
             <p class="buy__note">No network fee: Mostro pays it. Solana payments are final and can't be reversed.</p>
          </template>

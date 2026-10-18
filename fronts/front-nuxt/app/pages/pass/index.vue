@@ -51,6 +51,8 @@ async function redirectIfOwned(): Promise<boolean> {
 }
 
 onMounted(async () => {
+   // Know early whether the identity check is still missing, so the button can say so.
+   void session.refreshKyc().catch(() => undefined);
    if (route.query.confirm !== "1" && (await redirectIfOwned())) return;
    await refresh();
    // The price shown when the user confirms is always a fresh one.
@@ -66,7 +68,7 @@ const leftAfter = computed(() =>
    quote.value && balance.value !== null ? formatSol(balance.value > BigInt(quote.value.lamportsTotal) ? balance.value - BigInt(quote.value.lamportsTotal) : 0n, 3) : "…",
 );
 const wallet = computed(() => (session.walletAddress ? `Mostro wallet · ${shortAddress(session.walletAddress)}` : "Mostro wallet"));
-const buyLabel = computed(() => `Buy pass · ${priceSol.value} SOL`);
+const buyLabel = computed(() => (session.needsKyc ? "Verify your identity to buy" : `Buy pass · ${priceSol.value} SOL`));
 const canBuy = computed(() => quote.value !== null && quote.value.pass.active && left.value !== 0 && !loading.value);
 const shortBy = computed(() => (quote.value && balance.value !== null ? requiredLamports(quote.value) - balance.value : 0n));
 // The card step always buys 0.15 SOL (the MoonPay minimum). Any extra stays in the wallet.
@@ -79,6 +81,11 @@ async function mustVerifyFirst(): Promise<boolean> {
 }
 
 async function onOpenConfirm() {
+   // The identity check comes first and does not depend on the price loading.
+   if (session.needsKyc && (await mustVerifyFirst())) {
+      await navigateTo("/verify?next=/pass");
+      return;
+   }
    if (!canBuy.value) return;
    if (await mustVerifyFirst()) {
       await navigateTo("/verify?next=/pass");
@@ -156,7 +163,7 @@ function onCancel() {
                   <p v-if="loadError" class="pass__error">{{ loadError }} <button class="pass__retry" type="button" @click="refresh">Try again</button></p>
                </div>
                <div>
-                  <UiButton variant="dark" :disabled="!canBuy" @click="onOpenConfirm">{{ buyLabel }}</UiButton>
+                  <UiButton variant="dark" :disabled="!canBuy && !session.needsKyc" @click="onOpenConfirm">{{ buyLabel }}</UiButton>
                </div>
                <p class="pass__fee pass__fee--ink">No network fee: Mostro pays it. You'll see the exact price before you confirm.</p>
             </div>
@@ -173,7 +180,7 @@ function onCancel() {
 
          <!-- Phones: the buy button sits below the details. -->
          <div class="pass__buy">
-            <UiButton variant="primary" block :disabled="!canBuy" @click="onOpenConfirm">{{ buyLabel }}</UiButton>
+            <UiButton variant="primary" block :disabled="!canBuy && !session.needsKyc" @click="onOpenConfirm">{{ buyLabel }}</UiButton>
             <p class="pass__fee">No network fee: Mostro pays it. You'll see the exact price before you confirm.</p>
          </div>
       </div>
