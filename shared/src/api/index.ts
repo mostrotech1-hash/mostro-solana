@@ -153,6 +153,41 @@ export interface DevnetTopupResponse {
    signature: string | null;
 }
 
+// ---- Buy $MOST (Solana devnet): one sponsored transaction = buy an exact amount of $MOST on the bonding curve ----
+
+/** How much $MOST one purchase may buy (whole tokens). The server enforces it. */
+export const TOKEN_PURCHASE_LIMITS = { minTokens: 1, maxTokens: 100_000 } as const;
+
+/** Live quote for buying `tokens` whole $MOST. Amounts are strings (u64); `tokensOut` is in base units (6 decimals). */
+export interface TokenQuote {
+   cluster: "devnet";
+   tokens: number;
+   tokensOut: string;
+   lamportsCost: string;
+   lamportsFee: string;
+   lamportsTotal: string;
+   /** The most the transaction may take: `lamportsTotal` plus the slippage margin. */
+   maxLamportsIn: string;
+   slippageBps: number;
+   usdPerSolE6: string | null;
+}
+
+/** POST /tokens/buy/build */
+export interface BuildTokenPurchaseRequest {
+   walletAddress: string;
+   tokens: number;
+   /** The `maxLamportsIn` the user saw and confirmed. The API never builds a transaction above it. */
+   approvedMaxLamportsIn: string;
+}
+export interface BuildTokenPurchaseResponse {
+   /** Base64 transaction, already signed by the sponsor; the user's wallet signs at `buyerSignatureIndex`. */
+   transaction: string;
+   buyerSignatureIndex: number;
+   blockhash: string;
+   lastValidBlockHeight: number;
+   quote: TokenQuote;
+}
+
 /** Machine-readable `code` carried by some API errors, next to `message`. */
 export type ApiErrorCode = "QUOTE_CHANGED" | "PASS_PRICE_CHANGED" | "INSUFFICIENT_SOL" | "SPONSOR_UNAVAILABLE" | "WALLET_NOT_OWNED" | "RATE_LIMITED" | "KYC_UNAVAILABLE" | "KYC_REQUIRED";
 

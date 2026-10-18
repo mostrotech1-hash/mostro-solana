@@ -36,7 +36,7 @@ export function formatSol(lamports: bigint | string, decimals = 4): string {
 }
 
 /** Rough dollar value, only when the program publishes its own SOL price. */
-export function formatUsd(lamports: bigint | string, quote: PassQuote | null): string | null {
+export function formatUsd(lamports: bigint | string, quote: { usdPerSolE6: string | null } | null): string | null {
    if (!quote?.usdPerSolE6) return null;
    const cents = (BigInt(lamports) * BigInt(quote.usdPerSolE6) * 100n) / (LAMPORTS_PER_SOL * 1_000_000n);
    const dollars = Number(cents) / 100;

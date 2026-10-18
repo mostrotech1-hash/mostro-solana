@@ -1,5 +1,6 @@
 import type { Openfort } from "@openfort/openfort-js";
 import devnet from "@mostro/shared/addresses/devnet";
+import { MOSTRO_ERROR_CODES } from "@mostro/shared/api";
 import type {
    BuildPurchaseRequest,
    BuildPurchaseResponse,
@@ -82,20 +83,24 @@ async function signWithOpenfort(ctx: PurchaseContext, message: Uint8Array): Prom
    throw new PurchaseError("Your wallet could not sign the purchase. Nothing was bought. Please sign in again and try once more.", "wallet");
 }
 
+/** Turns an API refusal into a PurchaseError with a message that is safe to show. Shared by the pass and $MOST purchases. */
+export function toPurchaseError(error: unknown): unknown {
+   if (!(error instanceof ApiRequestError)) return error;
+   if (error.code === "QUOTE_CHANGED") return new PurchaseError("The price moved while you were confirming. Review the new price and confirm again.", "quote_changed", error.data?.quote);
+   if (error.code === "PASS_PRICE_CHANGED") return new PurchaseError("The pass changed. Please review it again.", "quote_changed");
+   if (error.code === "INSUFFICIENT_SOL") return new PurchaseError("Your wallet does not have enough SOL for this purchase.", "insufficient_funds");
+   if (error.code === "SPONSOR_UNAVAILABLE") return new PurchaseError("Purchases are temporarily unavailable. Please try again later.", "unavailable");
+   if (error.code === "KYC_REQUIRED") return new PurchaseError("Verify your identity before buying.", "kyc_required");
+   if (error.code === "RATE_LIMITED") return new PurchaseError("Too many attempts. Please wait a moment and try again.", "unavailable");
+   return new PurchaseError(error.message, "failed");
+}
+
 async function build(ctx: PurchaseContext, approvedMaxLamportsIn: string): Promise<BuildPurchaseResponse> {
    const body: BuildPurchaseRequest = { walletAddress: ctx.walletAddress, approvedMaxLamportsIn };
    try {
       return await ctx.api<BuildPurchaseResponse>("/pass/purchase/build", { method: "POST", body });
    } catch (error) {
-      if (!(error instanceof ApiRequestError)) throw error;
-      if (error.code === "QUOTE_CHANGED")
-         throw new PurchaseError("The price moved while you were confirming. Review the new price and confirm again.", "quote_changed", error.data?.quote);
-      if (error.code === "PASS_PRICE_CHANGED") throw new PurchaseError("The pass changed. Please review it again.", "quote_changed");
-      if (error.code === "INSUFFICIENT_SOL") throw new PurchaseError("Your wallet does not have enough SOL for this purchase.", "insufficient_funds");
-      if (error.code === "SPONSOR_UNAVAILABLE") throw new PurchaseError("Purchases are temporarily unavailable. Please try again later.", "unavailable");
-      if (error.code === "KYC_REQUIRED") throw new PurchaseError("Verify your identity before buying.", "kyc_required");
-      if (error.code === "RATE_LIMITED") throw new PurchaseError("Too many attempts. Please wait a moment and try again.", "unavailable");
-      throw new PurchaseError(error.message, "failed");
+      throw toPurchaseError(error);
    }
 }
 
@@ -142,20 +147,18 @@ export async function getMintStatus(ctx: Pick<PurchaseContext, "api" | "walletAd
    return toMintResult(await ctx.api<PurchaseResultResponse>("/pass/purchase/result", { method: "POST", body }), signature);
 }
 
-/**
- * Builds, signs, sends and confirms the purchase. Throws a PurchaseError for anything that did not go through.
- * It never retries by itself after a signature was requested: a second signature is always a second user decision.
- */
-export async function mintPassWithSol(ctx: PurchaseContext, input: MintInput): Promise<MintResult> {
-   let built: BuildPurchaseResponse;
-   try {
-      built = await build(ctx, input.approvedMaxLamportsIn);
-   } catch (error) {
-      // The card payment may have delivered less SOL than needed (the sandbox pays out a fraction): top up once on devnet.
-      if (error instanceof PurchaseError && error.kind === "insufficient_funds" && (await topUp(ctx))) built = await build(ctx, input.approvedMaxLamportsIn);
-      else throw error;
-   }
+/** What `submitBuiltTransaction` needs from the API's build answer. */
+export interface BuiltTransaction {
+   transaction: string;
+   buyerSignatureIndex: number;
+   lastValidBlockHeight: number;
+}
 
+/**
+ * Checks the sponsor-signed transaction, has the user's wallet sign it, sends it and waits for the network.
+ * Used by the pass purchase and the $MOST purchase, so both sign and send in exactly the same way.
+ */
+export async function submitBuiltTransaction(ctx: PurchaseContext, built: BuiltTransaction): Promise<{ signature: string; status: "confirmed" | "pending" }> {
    const { raw, parsed } = (() => {
       try {
          return prepareForSigning({
@@ -181,13 +184,31 @@ export async function mintPassWithSol(ctx: PurchaseContext, input: MintInput): P
       if (sent !== signature) console.warn("[mostro] the network returned a different transaction id", sent, signature);
    } catch (error) {
       if (!(error instanceof RpcError)) throw error;
-      if (error.programCode === 6005) throw new PurchaseError("The price moved. Review the new price and confirm again.", "slippage");
+      if (error.programCode === MOSTRO_ERROR_CODES.SlippageExceeded) throw new PurchaseError("The price moved. Review the new price and confirm again.", "slippage");
       // The network said no: it was not sent. If it could not even be reached, the transaction may still have landed,
       // so keep watching it (the wait ends with "expired" when its blockhash runs out) instead of sending again.
       if (error.rejected) throw new PurchaseError(error.message, "failed");
    }
    ctx.onSubmitted?.(signature);
 
-   if ((await waitForConfirmation(ctx, signature, built.lastValidBlockHeight)) === "pending") return { status: "pending", signature };
+   return { signature, status: await waitForConfirmation(ctx, signature, built.lastValidBlockHeight) };
+}
+
+/**
+ * Builds, signs, sends and confirms the purchase. Throws a PurchaseError for anything that did not go through.
+ * It never retries by itself after a signature was requested: a second signature is always a second user decision.
+ */
+export async function mintPassWithSol(ctx: PurchaseContext, input: MintInput): Promise<MintResult> {
+   let built: BuildPurchaseResponse;
+   try {
+      built = await build(ctx, input.approvedMaxLamportsIn);
+   } catch (error) {
+      // The card payment may have delivered less SOL than needed (the sandbox pays out a fraction): top up once on devnet.
+      if (error instanceof PurchaseError && error.kind === "insufficient_funds" && (await topUp(ctx))) built = await build(ctx, input.approvedMaxLamportsIn);
+      else throw error;
+   }
+
+   const { signature, status } = await submitBuiltTransaction(ctx, built);
+   if (status === "pending") return { status: "pending", signature };
    return getMintStatus(ctx, signature);
 }

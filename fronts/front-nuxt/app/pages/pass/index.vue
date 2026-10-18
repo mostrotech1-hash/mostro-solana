@@ -118,6 +118,7 @@ function onCancel() {
 <template>
    <AppShell title="The pass" back-to="/profile">
       <div class="pass">
+         <div class="pass__top"><UiButton to="/buy" variant="pill">Buy $MOST</UiButton></div>
          <!-- Phones: pass card, then the price panel. -->
          <div class="pass__phone">
             <UiCard variant="lime" class="pass__card">
@@ -203,6 +204,10 @@ function onCancel() {
 </template>
 
 <style scoped>
+.pass__top {
+   display: flex;
+   justify-content: flex-end;
+}
 .pass {
    display: flex;
    flex-direction: column;
