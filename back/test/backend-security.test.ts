@@ -63,8 +63,8 @@ test("MoonPay signing is bound to the caller, expiry and exact prepared paramete
 
 test("MoonPay preparation rejects a wallet the caller does not own", async () => {
    const openfort = { ownsSolanaWallet: async () => false } as unknown as OpenfortService;
-   const users = { findByOpenfortId: async () => ({ id: "customer" }) } as unknown as UserRepository;
-   const useCase = new PrepareWidgetUseCase(new MoonpayUrlService(env), users, openfort);
+   const users = { findByOpenfortId: async () => ({ id: "customer", kycStatus: "approved" }) } as unknown as UserRepository;
+   const useCase = new PrepareWidgetUseCase(env, new MoonpayUrlService(env), users, openfort);
    await assert.rejects(useCase.execute(identity, { walletAddress: Keypair.generate().publicKey.toBase58(), amountSol: 1 }, null), /does not belong/);
 });
 

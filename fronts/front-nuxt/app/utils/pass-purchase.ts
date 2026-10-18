@@ -29,7 +29,7 @@ export type MintResult =
    /** Sent but not confirmed yet. */
    | { status: "pending"; signature?: string };
 
-export type PurchaseFailure = "quote_changed" | "insufficient_funds" | "slippage" | "expired" | "rejected" | "rpc" | "wallet" | "unavailable" | "failed";
+export type PurchaseFailure = "quote_changed" | "insufficient_funds" | "slippage" | "expired" | "rejected" | "rpc" | "wallet" | "unavailable" | "kyc_required" | "failed";
 
 /** A purchase step that did not go through, with a message that is safe to show to the user. */
 export class PurchaseError extends Error {
@@ -93,6 +93,7 @@ async function build(ctx: PurchaseContext, approvedMaxLamportsIn: string): Promi
       if (error.code === "PASS_PRICE_CHANGED") throw new PurchaseError("The pass changed. Please review it again.", "quote_changed");
       if (error.code === "INSUFFICIENT_SOL") throw new PurchaseError("Your wallet does not have enough SOL for this purchase.", "insufficient_funds");
       if (error.code === "SPONSOR_UNAVAILABLE") throw new PurchaseError("Purchases are temporarily unavailable. Please try again later.", "unavailable");
+      if (error.code === "KYC_REQUIRED") throw new PurchaseError("Verify your identity before buying.", "kyc_required");
       if (error.code === "RATE_LIMITED") throw new PurchaseError("Too many attempts. Please wait a moment and try again.", "unavailable");
       throw new PurchaseError(error.message, "failed");
    }

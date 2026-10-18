@@ -4,6 +4,7 @@
  *
  *   yarn workspace @mostro/back tsx scripts/check-topup.ts
  */
+import type { UserRepository } from "../src/use-cases/users/user.repository";
 import { Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { loadEnv } from "../src/config/env";
 import { SolanaService } from "../src/modules/solana/solana.service";
@@ -16,19 +17,20 @@ async function main() {
    await solana.ensureDevnet();
    const sponsor = solana.sponsor();
    const { connection } = solana;
+   const approvedUsers = { findByOpenfortId: async () => ({ id: "script-user", kycStatus: "approved" }) } as unknown as UserRepository;
    const openfort = { ownsSolanaWallet: async () => true } as unknown as OpenfortService;
    const identity = { openfortId: "usr_topup_check", loginType: "email", email: null, imageUrl: null } as OpenfortIdentity;
 
    const buyer = Keypair.generate();
    const sponsorBefore = await connection.getBalance(sponsor.publicKey);
-   const result = await new TopupDevnetUseCase(env, openfort, solana).execute(identity, { walletAddress: buyer.publicKey.toBase58() });
+   const result = await new TopupDevnetUseCase(env, openfort, approvedUsers, solana).execute(identity, { walletAddress: buyer.publicKey.toBase58() });
    console.log("top-up result    :", JSON.stringify(result));
    const buyerBalance = await connection.getBalance(buyer.publicKey, "confirmed");
    console.log("buyer balance    :", buyerBalance / LAMPORTS_PER_SOL, "SOL (expected", env.DEVNET_TOPUP_LAMPORTS / LAMPORTS_PER_SOL + ")");
    if (buyerBalance !== env.DEVNET_TOPUP_LAMPORTS) throw new Error("The top-up amount is not the configured one.");
 
    // Second call: the wallet is no longer short, so nothing is sent.
-   const again = await new TopupDevnetUseCase(env, openfort, solana).execute({ ...identity, openfortId: "usr_topup_check_2" }, { walletAddress: buyer.publicKey.toBase58() });
+   const again = await new TopupDevnetUseCase(env, openfort, approvedUsers, solana).execute({ ...identity, openfortId: "usr_topup_check_2" }, { walletAddress: buyer.publicKey.toBase58() });
    console.log("second call      :", JSON.stringify(again));
    if (again.signature !== null) throw new Error("A wallet that is not short must not be topped up again.");
 

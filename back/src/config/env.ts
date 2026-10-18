@@ -38,6 +38,8 @@ const schema = z.object({
    SUMSUB_API_BASE_URL: z.string().default("https://api.sumsub.com"),
    SUMSUB_LEVEL_NAME: z.string().optional(),
    SUMSUB_TOKEN_TTL_SECS: z.coerce.number().int().min(60).max(3600).default(600),
+   /** When "true" (default), a user needs an approved Sumsub check to buy, top up or open MoonPay. "false" turns the gate off. */
+   KYC_REQUIRED_FOR_PURCHASE: z.enum(["true", "false"]).default("true"),
    /** Signing secret of the webhook (not the app secret). Without it the webhook route refuses every call. */
    SUMSUB_WEBHOOK_SECRET: z.string().optional(),
    AVATARS_DIR: z.string().default(join(process.cwd(), "storage", "avatars")),

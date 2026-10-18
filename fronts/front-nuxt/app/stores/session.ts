@@ -130,6 +130,10 @@ export const useSessionStore = defineStore("session", () => {
 
    /** Identity check state, from the server (never from the widget). */
    const kycStatus = computed<KycStatus>(() => profile.value?.kycStatus ?? "none");
+   /** Whether buying needs an approved check (the server decides; true until it says otherwise). */
+   const kycRequired = ref(true);
+   /** True when the user must finish the identity check before buying. */
+   const needsKyc = computed(() => kycRequired.value && kycStatus.value !== "approved");
 
    async function kycToken(): Promise<string> {
       return (await api<KycAccessTokenResponse>("/kyc/access-token", { method: "POST" })).token;
@@ -137,7 +141,8 @@ export const useSessionStore = defineStore("session", () => {
 
    /** Reads the status the server holds (it also asks Sumsub while the check is not final) and keeps the profile in step. */
    async function refreshKyc(): Promise<KycStatus> {
-      const { status } = await api<KycStatusResponse>("/kyc/status");
+      const { status, required } = await api<KycStatusResponse>("/kyc/status");
+      kycRequired.value = required;
       if (profile.value && profile.value.kycStatus !== status) profile.value = { ...profile.value, kycStatus: status };
       return status;
    }
@@ -169,6 +174,8 @@ export const useSessionStore = defineStore("session", () => {
       saveName,
       uploadAvatar,
       kycStatus,
+      kycRequired,
+      needsKyc,
       kycToken,
       refreshKyc,
       api,

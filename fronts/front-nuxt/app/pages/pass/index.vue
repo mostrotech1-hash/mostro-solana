@@ -72,8 +72,18 @@ const shortBy = computed(() => (quote.value && balance.value !== null ? required
 // The card step always buys 0.15 SOL (the MoonPay minimum). Any extra stays in the wallet.
 const MOONPAY_AMOUNT_SOL = 0.15;
 
-function onOpenConfirm() {
+/** Buying needs an approved identity check. Ask the server (it may have changed since sign-in), then decide. */
+async function mustVerifyFirst(): Promise<boolean> {
+   await session.refreshKyc().catch(() => undefined);
+   return session.needsKyc;
+}
+
+async function onOpenConfirm() {
    if (!canBuy.value) return;
+   if (await mustVerifyFirst()) {
+      await navigateTo("/verify?next=/pass");
+      return;
+   }
    // Re-read the price so what is reviewed is what gets signed.
    void refresh().then(() => (confirmOpen.value = quote.value !== null));
 }

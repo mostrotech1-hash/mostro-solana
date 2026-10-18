@@ -34,6 +34,8 @@ export interface KycAccessTokenResponse {
 /** GET /kyc/status */
 export interface KycStatusResponse {
    status: KycStatus;
+   /** `true` when buying needs an approved identity check (the front sends the user to /verify first). */
+   required: boolean;
 }
 
 /** POST /users/sync (no body): creates the user on first login, returns it on the next ones. */
@@ -152,7 +154,7 @@ export interface DevnetTopupResponse {
 }
 
 /** Machine-readable `code` carried by some API errors, next to `message`. */
-export type ApiErrorCode = "QUOTE_CHANGED" | "PASS_PRICE_CHANGED" | "INSUFFICIENT_SOL" | "SPONSOR_UNAVAILABLE" | "WALLET_NOT_OWNED" | "RATE_LIMITED" | "KYC_UNAVAILABLE";
+export type ApiErrorCode = "QUOTE_CHANGED" | "PASS_PRICE_CHANGED" | "INSUFFICIENT_SOL" | "SPONSOR_UNAVAILABLE" | "WALLET_NOT_OWNED" | "RATE_LIMITED" | "KYC_UNAVAILABLE" | "KYC_REQUIRED";
 
 /** Every error body the API returns. */
 export interface ApiError {
