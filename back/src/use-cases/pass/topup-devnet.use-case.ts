@@ -5,6 +5,8 @@ import { ENV, type Env } from "../../config/env";
 import { RateLimiter } from "../../common/api-error";
 import { OpenfortService, type OpenfortIdentity } from "../../modules/openfort/openfort.service";
 import { SolanaService } from "../../modules/solana/solana.service";
+import { requireApprovedKyc } from "../kyc/require-kyc";
+import { UserRepository } from "../users/user.repository";
 import { requireOwnedWallet } from "./pass-wallet";
 
 /** The sponsor always keeps a reserve for the rent of the passes it sponsors. */
@@ -22,6 +24,7 @@ export class TopupDevnetUseCase {
    constructor(
       @Inject(ENV) private readonly env: Env,
       @Inject(OpenfortService) private readonly openfort: OpenfortService,
+      @Inject(UserRepository) private readonly users: UserRepository,
       @Inject(SolanaService) private readonly solana: SolanaService,
    ) {}
 
@@ -30,6 +33,7 @@ export class TopupDevnetUseCase {
       this.limiter.check(`${identity.openfortId}:burst`, 1, 20_000);
       this.limiter.check(`${identity.openfortId}:hour`, 5, 60 * 60_000);
 
+      await requireApprovedKyc(this.env, this.users, identity); // the sponsor does not pay out to unverified users
       const buyer = await requireOwnedWallet(this.openfort, identity, request.walletAddress);
       const { quote } = await this.solana.loadPassState();
       const { connection } = this.solana;

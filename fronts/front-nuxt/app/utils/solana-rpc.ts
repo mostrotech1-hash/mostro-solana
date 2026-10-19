@@ -4,7 +4,7 @@ import { MOSTRO_ERROR_COPY } from "@mostro/shared/api";
 export class RpcError extends Error {
    constructor(
       message: string,
-      /** On-chain custom program error code, when the node reported one (6005 is SlippageExceeded). */
+      /** On-chain custom program error code, when the node reported one (6006 is SlippageExceeded). */
       readonly programCode: number | null = null,
       /** The node answered but refused the transaction (as opposed to the node being unreachable). */
       readonly rejected = false,
@@ -18,7 +18,7 @@ interface RpcErrorBody {
    data?: { err?: unknown; logs?: string[] };
 }
 
-/** `{ InstructionError: [index, { Custom: 6005 }] }` -> 6005 */
+/** `{ InstructionError: [index, { Custom: 6006 }] }` -> 6006 */
 function customCode(err: unknown): number | null {
    const instruction = (err as { InstructionError?: [number, unknown] } | null)?.InstructionError;
    const custom = (instruction?.[1] as { Custom?: number } | undefined)?.Custom;

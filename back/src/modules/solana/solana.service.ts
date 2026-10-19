@@ -3,7 +3,7 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import devnetAddresses from "@mostro/shared/addresses/devnet";
 import { artistPda, createReadonlyProgram, fetchConfig, fetchCurve, isBlacklisted, maxIn, perkKindName, perkPda, quoteBuyExactOut, type MostroProgram } from "@mostro/shared";
-import type { PassQuote } from "@mostro/shared/api";
+import type { PassQuote, TokenQuote } from "@mostro/shared/api";
 import { ENV, type Env } from "../../config/env";
 import { apiError } from "../../common/api-error";
 
@@ -20,6 +20,9 @@ export const DEMO_PASS = {
 } as const;
 
 const DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+
+/** $MOST has 6 decimals: one whole token is this many base units. */
+export const TOKEN_BASE_UNITS = 1_000_000n;
 
 type ConfigAccount = Awaited<ReturnType<typeof fetchConfig>>;
 type CurveAccount = Awaited<ReturnType<typeof fetchCurve>>;
@@ -118,6 +121,31 @@ export class SolanaService {
          usdPerSolE6: config.priceMode === 0 && !new BN(config.solUsdPriceE6).isZero() ? config.solUsdPriceE6.toString() : null,
       };
       return { config, curve, perk, perkAddress, artistAddress, quote };
+   }
+
+   /** Fresh config and curve from the chain, and the live quote for buying exactly `tokens` whole $MOST. */
+   async loadTokenState(tokens: number): Promise<{ config: ConfigAccount; curve: CurveAccount; tokensOut: BN; quote: TokenQuote }> {
+      await this.ensureDevnet();
+      const [config, curve] = await Promise.all([fetchConfig(this.program), fetchCurve(this.program, DEMO_PASS.curveIndex)]);
+      const tokensOut = new BN((BigInt(tokens) * TOKEN_BASE_UNITS).toString());
+      let q: ReturnType<typeof quoteBuyExactOut>;
+      try {
+         q = quoteBuyExactOut(curve.virtualSolReserves, curve.virtualTokenReserves, tokensOut, config.feeBps);
+      } catch {
+         throw apiError(409, "QUOTE_CHANGED", "That amount is not available on the curve right now. Try a smaller amount.");
+      }
+      const quote: TokenQuote = {
+         cluster: "devnet",
+         tokens,
+         tokensOut: tokensOut.toString(),
+         lamportsCost: q.netIn.toString(),
+         lamportsFee: q.fee.toString(),
+         lamportsTotal: q.totalIn.toString(),
+         maxLamportsIn: maxIn(q.totalIn, DEMO_PASS.slippageBps).toString(),
+         slippageBps: DEMO_PASS.slippageBps,
+         usdPerSolE6: config.priceMode === 0 && !new BN(config.solUsdPriceE6).isZero() ? config.solUsdPriceE6.toString() : null,
+      };
+      return { config, curve, tokensOut, quote };
    }
 
    /** Blacklisted wallets cannot buy or redeem (there is no on-chain KYC; everyone else is allowed). */
