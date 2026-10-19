@@ -8,6 +8,12 @@ import { ENV, type Env } from "./config/env";
 export async function createApp(): Promise<{ app: NestExpressApplication; env: Env }> {
    const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
    const env = app.get<Env>(ENV);
+   app.disable("x-powered-by");
+   app.use((_req: unknown, res: { setHeader(name: string, value: string): void }, next: () => void) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Referrer-Policy", "no-referrer");
+      next();
+   });
    app.set(
       "trust proxy",
       env.TRUSTED_PROXIES?.split(",")

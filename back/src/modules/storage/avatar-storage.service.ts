@@ -58,7 +58,8 @@ export class AvatarStorageService {
    async saveFromUrl(userId: string, url: string): Promise<string | null> {
       try {
          if (!url.startsWith("https://")) return null;
-         const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+         // Redirects are refused: an https provider URL must not bounce the server to an internal address.
+         const response = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: "error" });
          if (!response.ok || Number(response.headers.get("content-length")) > MAX_BYTES) {
             await response.body?.cancel();
             return null;
