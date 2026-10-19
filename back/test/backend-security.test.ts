@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { test } from "node:test";
 import express from "express";
 import { Keypair } from "@solana/web3.js";
+import { RateLimiter } from "../src/common/api-error";
 import { loadEnv } from "../src/config/env";
 import { MoonpayUrlService } from "../src/modules/moonpay/moonpay-url.service";
 import { OpenfortService } from "../src/modules/openfort/openfort.service";
@@ -166,4 +167,28 @@ test("avatar downloads reject advertised and streamed oversize bodies before sav
    } finally {
       globalThis.fetch = originalFetch;
    }
+});
+
+test("avatar downloads refuse redirects", async () => {
+   const service = new AvatarStorageService(env);
+   const originalFetch = globalThis.fetch;
+   let init: RequestInit | undefined;
+   globalThis.fetch = async (_url, options) => {
+      init = options;
+      throw new Error("redirect");
+   };
+   try {
+      assert.equal(await service.saveFromUrl("user", "https://provider.test/avatar"), null);
+      assert.equal(init?.redirect, "error");
+   } finally {
+      globalThis.fetch = originalFetch;
+   }
+});
+
+test("the rate limiter blocks after the maximum and frees idle keys", () => {
+   const limiter = new RateLimiter();
+   limiter.check("a", 2, 60_000);
+   limiter.check("a", 2, 60_000);
+   assert.throws(() => limiter.check("a", 2, 60_000));
+   limiter.check("b", 2, 60_000);
 });
