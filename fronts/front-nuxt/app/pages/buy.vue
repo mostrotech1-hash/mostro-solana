@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { TOKEN_PURCHASE_LIMITS, type TokenQuote } from "@mostro/shared/api";
 
-// Buy $MOST: pick an amount, see the live price from the curve, pay from the Mostro wallet (card through MoonPay when it is short).
+// Buy $MOOG: pick an amount, see the live price from the curve, pay from the Mostro wallet (card through MoonPay when it is short).
 const session = useSessionStore();
 const config = useRuntimeConfig();
 
@@ -42,7 +42,7 @@ let requestId = 0;
 async function refreshQuote() {
    if (!validAmount.value) {
       quote.value = null;
-      loadError.value = `Choose between ${TOKEN_PURCHASE_LIMITS.minTokens} and ${TOKEN_PURCHASE_LIMITS.maxTokens.toLocaleString("en-US")} $MOST.`;
+      loadError.value = `Choose between ${TOKEN_PURCHASE_LIMITS.minTokens} and ${TOKEN_PURCHASE_LIMITS.maxTokens.toLocaleString("en-US")} $MOOG.`;
       loading.value = false;
       return;
    }
@@ -131,7 +131,7 @@ async function buy() {
       phase.value = result.status === "confirmed" ? "done" : "pending";
       await refreshBalance().catch(() => undefined);
    } catch (error) {
-      console.error("[mostro] buying $MOST failed", error);
+      console.error("[mostro] buying $MOOG failed", error);
       if (error instanceof PurchaseError && error.kind === "kyc_required") return void (await navigateTo("/verify?next=/buy"));
       failure.value = error instanceof Error ? error.message : "Something went wrong. Nothing was bought.";
       phase.value = "failed";
@@ -141,16 +141,16 @@ async function buy() {
 </script>
 
 <template>
-   <AppShell title="Buy $MOST" back-to="/pass" :max-width="560">
+   <AppShell title="Buy $MOOG" back-to="/pass" :max-width="560">
       <div class="buy">
-         <UiStatus v-if="!session.chainEnabled" title="Buying $MOST opens soon" text="We are finishing the setup on Solana. Your account and identity check are ready.">
+         <UiStatus v-if="!session.chainEnabled" title="Buying $MOOG opens soon" text="We are finishing the setup on Solana. Your account and identity check are ready.">
             <UiButton v-if="session.needsKyc" to="/verify?next=/buy" variant="primary" block>Verify your identity</UiButton>
             <UiButton to="/pass" variant="secondary" block>Back to the pass</UiButton>
          </UiStatus>
 
          <template v-else-if="phase === 'done' || phase === 'pending'">
             <UiStatus
-               :title="phase === 'done' ? `You bought ${boughtTokens.toLocaleString('en-US')} $MOST` : 'Your purchase is on its way'"
+               :title="phase === 'done' ? `You bought ${boughtTokens.toLocaleString('en-US')} $MOOG` : 'Your purchase is on its way'"
                :text="phase === 'done' ? 'The tokens are in your Mostro wallet.' : 'The network has not confirmed it yet. You can check it on the explorer; nothing is charged twice.'"
             >
                <UiButton :href="explorerUrl" variant="secondary" block>View on Solana Explorer</UiButton>
@@ -159,7 +159,7 @@ async function buy() {
          </template>
 
          <template v-else>
-            <h1 class="buy__title">Buy $MOST</h1>
+            <h1 class="buy__title">Buy $MOOG</h1>
             <p class="buy__lead">Pick how many tokens you want. The price comes live from the bonding curve.</p>
 
             <div class="buy__presets" role="group" aria-label="Amount">
@@ -168,10 +168,10 @@ async function buy() {
                </button>
             </div>
             <UiInput v-model="custom" label="Or type an amount" placeholder="e.g. 250" inputmode="numeric" :maxlength="6" caps />
-            <p class="buy__note">From {{ TOKEN_PURCHASE_LIMITS.minTokens }} to {{ TOKEN_PURCHASE_LIMITS.maxTokens.toLocaleString("en-US") }} $MOST per purchase.</p>
+            <p class="buy__note">From {{ TOKEN_PURCHASE_LIMITS.minTokens }} to {{ TOKEN_PURCHASE_LIMITS.maxTokens.toLocaleString("en-US") }} $MOOG per purchase.</p>
 
             <UiCard variant="panel" class="buy__summary" aria-live="polite" :aria-busy="loading">
-               <UiRow label="You get" :value="`${validAmount ? tokens.toLocaleString('en-US') : '…'} $MOST`" />
+               <UiRow label="You get" :value="`${validAmount ? tokens.toLocaleString('en-US') : '…'} $MOOG`" />
                <UiRow label="You pay" :value="`${priceSol} SOL`" :hint="priceUsd ? `≈ ${priceUsd}` : undefined" strong />
                <UiRow label="At most" :value="`${maxSol} SOL`" hint="If the price moves while you confirm" />
                <UiRow label="Wallet balance" :value="`${balanceSol} SOL`" />
@@ -183,7 +183,7 @@ async function buy() {
             <p v-if="session.needsKyc" class="buy__note">You need to verify your identity before you can buy. We will take you there first.</p>
 
             <UiButton variant="primary" block :loading="buying" :disabled="!validAmount || (!session.needsKyc && (!fresh || loading))" @click="onBuy">
-               {{ buying ? "Buying…" : session.needsKyc ? "Verify your identity to buy" : `Buy ${validAmount ? tokens.toLocaleString("en-US") : ""} $MOST` }}
+               {{ buying ? "Buying…" : session.needsKyc ? "Verify your identity to buy" : `Buy ${validAmount ? tokens.toLocaleString("en-US") : ""} $MOOG` }}
             </UiButton>
             <p class="buy__note">No network fee: Mostro pays it. Solana payments are final and can't be reversed.</p>
          </template>

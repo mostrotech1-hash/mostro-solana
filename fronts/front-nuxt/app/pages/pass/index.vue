@@ -134,7 +134,7 @@ function onCancel() {
 <template>
    <AppShell title="The pass" back-to="/profile">
       <div class="pass">
-         <div v-if="session.chainEnabled" class="pass__top"><UiButton to="/buy" variant="pill">Buy $MOST</UiButton></div>
+         <div v-if="session.chainEnabled" class="pass__top"><UiButton to="/buy" variant="pill">Buy $MOOG</UiButton></div>
          <p v-else class="pass__soon" role="status">Buying opens soon. You can verify your identity now so you are ready.</p>
          <!-- Phones: pass card, then the price panel. -->
          <div class="pass__phone">
