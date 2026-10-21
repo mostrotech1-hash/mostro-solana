@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import type { KycAccessTokenResponse, KycStatusResponse } from "@mostro/shared/api";
+import { ENV, type Env } from "../../config/env";
 import { RateLimiter } from "../../common/api-error";
 import type { OpenfortIdentity } from "../../modules/openfort/openfort.service";
 import { SumsubService, isValidWebhookSignature, kycStatusFromReview, type SumsubReview } from "../../modules/sumsub/sumsub.service";
@@ -34,6 +35,7 @@ export class GetKycStatusUseCase {
    private readonly limiter = new RateLimiter();
 
    constructor(
+      @Inject(ENV) private readonly env: Env,
       @Inject(UserRepository) private readonly users: UserRepository,
       @Inject(SumsubService) private readonly sumsub: SumsubService,
    ) {}
@@ -41,19 +43,20 @@ export class GetKycStatusUseCase {
    async execute(identity: OpenfortIdentity): Promise<KycStatusResponse> {
       this.limiter.check(`${identity.openfortId}:kyc-status`, 30, 60_000);
       const user = await requireUser(this.users, identity);
-      if (user.kycStatus === "approved" || user.kycStatus === "rejected") return { status: user.kycStatus };
+      const required = this.env.KYC_REQUIRED_FOR_PURCHASE === "true";
+      if (user.kycStatus === "approved" || user.kycStatus === "rejected") return { status: user.kycStatus, required };
 
       let review: SumsubReview | null = null;
       try {
          review = await this.sumsub.getApplicant(user.id);
       } catch {
          // Sumsub unreachable or not configured: the stored status is still the answer.
-         return { status: user.kycStatus };
+         return { status: user.kycStatus, required };
       }
-      if (!review) return { status: user.kycStatus };
+      if (!review) return { status: user.kycStatus, required };
       const status = kycStatusFromReview(review);
       await this.users.setKyc(user.id, status, review.applicantId ?? null);
-      return { status };
+      return { status, required };
    }
 }
 

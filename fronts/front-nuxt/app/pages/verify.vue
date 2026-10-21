@@ -1,6 +1,12 @@
 <script setup lang="ts">
 // Identity check with Sumsub. The widget only collects the documents; the result comes from our server (webhook), never from the widget.
 const session = useSessionStore();
+const route = useRoute();
+// Where to go once the check is approved (only a path inside the app, never another site).
+const next = computed(() => {
+   const value = typeof route.query.next === "string" ? route.query.next : "";
+   return value.startsWith("/") && !value.startsWith("//") ? value : "/pass";
+});
 
 const loading = ref(true);
 const error = ref("");
@@ -30,6 +36,7 @@ function startPolling() {
          if (status === "approved" || status === "rejected") {
             waiting.value = false;
             stopPolling();
+            if (status === "approved") await navigateTo(next.value);
          }
       } catch {
          // keep trying; the next tick may work
@@ -43,6 +50,7 @@ async function start() {
    loading.value = true;
    try {
       const status = await session.refreshKyc();
+      if (status === "approved" && route.query.next) return void (await navigateTo(next.value));
       if (status === "pending") return startPolling();
       if (status !== "none") return;
       await nextTick();
@@ -85,7 +93,7 @@ onBeforeUnmount(() => {
    <AppShell title="Identity check" back-to="/pass" :max-width="560">
       <div class="verify">
          <UiStatus v-if="done" title="You are verified" text="Your identity check is complete.">
-            <UiButton to="/pass" variant="primary" block>Continue</UiButton>
+            <UiButton :to="next" variant="primary" block>Continue</UiButton>
          </UiStatus>
 
          <UiStatus v-else-if="inReview" title="We are checking your documents" text="This usually takes a few minutes. You can leave this page; we will keep your result." animated>
@@ -98,7 +106,7 @@ onBeforeUnmount(() => {
 
          <template v-if="showWidget">
             <h1 class="verify__title">Verify your identity</h1>
-            <p class="verify__lead">A quick check with our partner Sumsub. Your documents are handled by Sumsub, not stored by Mostro.</p>
+            <p class="verify__lead">{{ route.query.next ? "You need to verify your identity before you can buy. " : "" }}A quick check with our partner Sumsub. Your documents are handled by Sumsub, not stored by Mostro.</p>
             <div class="verify__stage">
                <div id="sumsub-container" />
                <UiLoading v-if="loading" text="Loading verification…" />

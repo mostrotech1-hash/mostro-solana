@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { test } from "node:test";
 import express from "express";
 import { Keypair } from "@solana/web3.js";
+import { RateLimiter } from "../src/common/api-error";
 import { loadEnv } from "../src/config/env";
 import { MoonpayUrlService } from "../src/modules/moonpay/moonpay-url.service";
 import { OpenfortService } from "../src/modules/openfort/openfort.service";
@@ -63,8 +64,8 @@ test("MoonPay signing is bound to the caller, expiry and exact prepared paramete
 
 test("MoonPay preparation rejects a wallet the caller does not own", async () => {
    const openfort = { ownsSolanaWallet: async () => false } as unknown as OpenfortService;
-   const users = { findByOpenfortId: async () => ({ id: "customer" }) } as unknown as UserRepository;
-   const useCase = new PrepareWidgetUseCase(new MoonpayUrlService(env), users, openfort);
+   const users = { findByOpenfortId: async () => ({ id: "customer", kycStatus: "approved" }) } as unknown as UserRepository;
+   const useCase = new PrepareWidgetUseCase(env, new MoonpayUrlService(env), users, openfort);
    await assert.rejects(useCase.execute(identity, { walletAddress: Keypair.generate().publicKey.toBase58(), amountSol: 1 }, null), /does not belong/);
 });
 
@@ -166,4 +167,28 @@ test("avatar downloads reject advertised and streamed oversize bodies before sav
    } finally {
       globalThis.fetch = originalFetch;
    }
+});
+
+test("avatar downloads refuse redirects", async () => {
+   const service = new AvatarStorageService(env);
+   const originalFetch = globalThis.fetch;
+   let init: RequestInit | undefined;
+   globalThis.fetch = async (_url, options) => {
+      init = options;
+      throw new Error("redirect");
+   };
+   try {
+      assert.equal(await service.saveFromUrl("user", "https://provider.test/avatar"), null);
+      assert.equal(init?.redirect, "error");
+   } finally {
+      globalThis.fetch = originalFetch;
+   }
+});
+
+test("the rate limiter blocks after the maximum and frees idle keys", () => {
+   const limiter = new RateLimiter();
+   limiter.check("a", 2, 60_000);
+   limiter.check("a", 2, 60_000);
+   assert.throws(() => limiter.check("a", 2, 60_000));
+   limiter.check("b", 2, 60_000);
 });

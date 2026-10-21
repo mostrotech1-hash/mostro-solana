@@ -7,6 +7,7 @@
  *
  *   yarn workspace @mostro/back e2e:devnet
  */
+import type { UserRepository } from "../src/use-cases/users/user.repository";
 import { Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { loadEnv } from "../src/config/env";
 import { PurchaseTransactionBuilder } from "../src/modules/solana/purchase-transaction.builder";
@@ -54,7 +55,8 @@ async function main() {
    const sponsorBefore = BigInt(await connection.getBalance(sponsor.publicKey));
 
    // 3. Backend: build the sponsored transaction (validates, quotes again, fresh blockhash, sponsor signs).
-   const build = new BuildSponsoredPurchaseUseCase(env, openfort, solana, new PurchaseTransactionBuilder(solana));
+   const approvedUsers = { findByOpenfortId: async () => ({ id: "script-user", kycStatus: "approved" }) } as unknown as UserRepository;
+   const build = new BuildSponsoredPurchaseUseCase(env, openfort, approvedUsers, solana, new PurchaseTransactionBuilder(solana));
    const built = await build.execute(identity, { walletAddress: buyer.publicKey.toBase58(), approvedMaxLamportsIn: state.quote.maxLamportsIn });
    const raw = Buffer.from(built.transaction, "base64");
    console.log("transaction size     :", raw.length, "bytes (limit 1232)");

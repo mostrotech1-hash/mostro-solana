@@ -36,6 +36,12 @@ onMounted(async () => {
       }
       // "pending": keep waiting here; the timer moves to H09.
    } catch (error) {
+      if (error instanceof PurchaseError && error.kind === "kyc_required") {
+         // The server says the identity check is missing (e.g. it was reset): do the check, then come back to buy.
+         await session.refreshKyc().catch(() => undefined);
+         await leave("/verify?next=/pass");
+         return;
+      }
       console.error("[mostro] purchase failed", error);
       if (error instanceof PurchaseError && error.quote) purchase.quote = error.quote;
       purchase.failureReason = error instanceof Error ? error.message : "Something went wrong.";

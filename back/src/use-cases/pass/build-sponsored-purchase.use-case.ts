@@ -8,6 +8,8 @@ import { RateLimiter, apiError } from "../../common/api-error";
 import { OpenfortService, type OpenfortIdentity } from "../../modules/openfort/openfort.service";
 import { PurchaseTransactionBuilder } from "../../modules/solana/purchase-transaction.builder";
 import { SolanaService } from "../../modules/solana/solana.service";
+import { requireApprovedKyc } from "../kyc/require-kyc";
+import { UserRepository } from "../users/user.repository";
 import { requireOwnedWallet } from "./pass-wallet";
 
 /** The sponsor must keep enough SOL for the rent of the accounts one purchase creates (token account, receipt, pass asset). */
@@ -25,6 +27,7 @@ export class BuildSponsoredPurchaseUseCase {
    constructor(
       @Inject(ENV) private readonly env: Env,
       @Inject(OpenfortService) private readonly openfort: OpenfortService,
+      @Inject(UserRepository) private readonly users: UserRepository,
       @Inject(SolanaService) private readonly solana: SolanaService,
       @Inject(PurchaseTransactionBuilder) private readonly builder: PurchaseTransactionBuilder,
    ) {}
@@ -34,6 +37,8 @@ export class BuildSponsoredPurchaseUseCase {
       this.limiter.check(`${identity.openfortId}:burst`, 1, 2_000);
       this.limiter.check(`${identity.openfortId}:hour`, 20, 60 * 60_000);
 
+      // Before anything is read from the chain or signed: no approved identity check, no purchase.
+      await requireApprovedKyc(this.env, this.users, identity);
       const buyer = await requireOwnedWallet(this.openfort, identity, request.walletAddress);
       const approved = parseLamports(request.approvedMaxLamportsIn);
 

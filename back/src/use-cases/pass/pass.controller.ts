@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Post, Query, UseGuards } from 
 import type { BuildPurchaseResponse, DevnetTopupResponse, PassOwnershipResponse, PassQuote, PurchaseResultResponse } from "@mostro/shared/api";
 import { z } from "zod";
 import { AuthGuard } from "../../common/auth.guard";
+import { ChainEnabledGuard } from "../../common/chain-enabled.guard";
 import { CurrentIdentity, parseBody } from "../../common/http";
 import type { OpenfortIdentity } from "../../modules/openfort/openfort.service";
 import { BuildSponsoredPurchaseUseCase } from "./build-sponsored-purchase.use-case";
@@ -16,7 +17,7 @@ const resultSchema = z.object({ walletAddress: wallet, signature: z.string().min
 const topupSchema = z.object({ walletAddress: wallet });
 
 @Controller("pass")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ChainEnabledGuard)
 export class PassController {
    constructor(
       @Inject(GetPassQuoteUseCase) private readonly getQuote: GetPassQuoteUseCase,
