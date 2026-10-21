@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { KycStatus } from "@mostro/shared/api";
 import { ENV, type Env } from "../../config/env";
 import { apiError } from "../../common/api-error";
@@ -39,6 +39,8 @@ const UNAVAILABLE = "Identity verification is not available right now.";
 /** Signed calls to the Sumsub API. The app token and secret only exist in `back/.env`. */
 @Injectable()
 export class SumsubService {
+   private readonly logger = new Logger(SumsubService.name);
+
    constructor(@Inject(ENV) private readonly env: Env) {}
 
    private credentials(): { token: string; secret: string; levelName: string } {
@@ -50,6 +52,18 @@ export class SumsubService {
    webhookSecret(): string {
       if (!this.env.SUMSUB_WEBHOOK_SECRET) throw apiError(503, "KYC_UNAVAILABLE", UNAVAILABLE);
       return this.env.SUMSUB_WEBHOOK_SECRET;
+   }
+
+   /** Why Sumsub said no, for the server log only (status and its own description; never keys or the response body in full). */
+   private async logFailure(action: string, response: Response): Promise<void> {
+      let description = "";
+      try {
+         const body = (await response.json()) as { description?: string; code?: number };
+         description = `${body.code ?? ""} ${body.description ?? ""}`.trim().slice(0, 200);
+      } catch {
+         // not JSON
+      }
+      this.logger.warn(`Sumsub ${action} failed: HTTP ${response.status} ${description}`);
    }
 
    private call(method: "GET" | "POST", pathWithQuery: string): Promise<Response> {
@@ -68,6 +82,7 @@ export class SumsubService {
       const ttl = this.env.SUMSUB_TOKEN_TTL_SECS;
       const query = `userId=${encodeURIComponent(externalUserId)}&levelName=${encodeURIComponent(levelName)}&ttlInSecs=${ttl}`;
       const response = await this.call("POST", `/resources/accessTokens?${query}`);
+      if (!response.ok) await this.logFailure("access token", response);
       const body = response.ok ? ((await response.json()) as { token?: string }) : {};
       if (!body.token) throw apiError(502, "KYC_UNAVAILABLE", "Identity verification could not be started. Try again in a moment.");
       return { token: body.token, expiresInSecs: ttl };
@@ -77,7 +92,10 @@ export class SumsubService {
    async getApplicant(externalUserId: string): Promise<SumsubReview | null> {
       const response = await this.call("GET", `/resources/applicants/-;externalUserId=${encodeURIComponent(externalUserId)}/one`);
       if (response.status === 404) return null;
-      if (!response.ok) throw apiError(502, "KYC_UNAVAILABLE", "Identity verification status is not available right now.");
+      if (!response.ok) {
+         await this.logFailure("applicant status", response);
+         throw apiError(502, "KYC_UNAVAILABLE", "Identity verification status is not available right now.");
+      }
       const body = (await response.json()) as { id?: string; review?: { reviewStatus?: string; reviewResult?: SumsubReview["reviewResult"] } };
       return { applicantId: body.id, externalUserId, reviewStatus: body.review?.reviewStatus, reviewResult: body.review?.reviewResult };
    }
