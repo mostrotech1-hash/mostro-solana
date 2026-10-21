@@ -140,7 +140,7 @@ function onCancel() {
             <WalletBalances to="/wallet" />
             <UiButton v-if="session.chainEnabled" to="/buy" variant="pill">Buy ${{ walletStore.tokenSymbol }}</UiButton>
          </div>
-         <p v-else class="pass__soon" role="status">Buying opens soon. You can verify your identity now so you are ready.</p>
+         <p v-if="!session.chainEnabled" class="pass__soon" role="status">Buying opens soon. You can verify your identity now so you are ready.</p>
          <!-- Phones: pass card, then the price panel. -->
          <div class="pass__phone">
             <UiCard variant="lime" class="pass__card">
