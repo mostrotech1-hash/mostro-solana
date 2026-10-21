@@ -28,10 +28,7 @@ async function signOut() {
 <template>
    <div ref="root" class="user-menu">
       <template v-if="session.profile">
-         <div class="user-menu__money">
-            <WalletBalances to="/wallet" />
-            <UiButton v-if="session.chainEnabled" to="/buy" variant="pill">Buy ${{ wallet.tokenSymbol }}</UiButton>
-         </div>
+         <WalletBalances to="/wallet" :buy="session.chainEnabled" class="user-menu__money" />
          <NuxtLink to="/wallet" class="user-menu__wallet">My wallet</NuxtLink>
          <div class="user-menu__anchor">
             <button type="button" class="user-menu__trigger" aria-haspopup="menu" :aria-expanded="open" @click="open = !open">

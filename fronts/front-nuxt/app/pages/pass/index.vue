@@ -4,7 +4,6 @@ import passImage from "~/assets/images/Mo-OG-Pass-x.png";
 
 // H03 · The pass, paid in SOL  +  H04 · Review and confirm (sheet on phones, modal on desktop)
 const session = useSessionStore();
-const walletStore = useWalletStore();
 const route = useRoute();
 const config = useRuntimeConfig();
 // "Try again" on the cancelled screen comes back here with the confirmation already open (H04).
@@ -136,10 +135,7 @@ function onCancel() {
    <AppShell title="The pass" back-to="/profile">
       <div class="pass">
          <!-- Phones: balances and the Buy button at the top. On desktop they live in the header, next to each other. -->
-         <div class="pass__top">
-            <WalletBalances to="/wallet" />
-            <UiButton v-if="session.chainEnabled" to="/buy" variant="pill">Buy ${{ walletStore.tokenSymbol }}</UiButton>
-         </div>
+         <div class="pass__top"><WalletBalances to="/wallet" :buy="session.chainEnabled" /></div>
          <p v-if="!session.chainEnabled" class="pass__soon" role="status">Buying opens soon. You can verify your identity now so you are ready.</p>
          <!-- Phones: pass card, then the price panel. -->
          <div class="pass__phone">
