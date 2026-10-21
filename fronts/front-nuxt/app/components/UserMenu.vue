@@ -3,16 +3,21 @@
 const session = useSessionStore();
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
+const wallet = useWalletStore();
 
 function onClickOutside(event: MouseEvent) {
    if (root.value && !root.value.contains(event.target as Node)) open.value = false;
 }
-onMounted(() => document.addEventListener("click", onClickOutside));
+onMounted(() => {
+   document.addEventListener("click", onClickOutside);
+   void wallet.refresh();
+});
 onBeforeUnmount(() => document.removeEventListener("click", onClickOutside));
 
 async function signOut() {
    open.value = false;
    await session.logout();
+   wallet.reset();
    await navigateTo("/");
 }
 </script>
@@ -20,6 +25,7 @@ async function signOut() {
 <template>
    <div ref="root" class="user-menu">
       <template v-if="session.profile">
+         <WalletBalances to="/wallet" class="user-menu__balances" />
          <NuxtLink to="/wallet" class="user-menu__wallet">My wallet</NuxtLink>
          <div class="user-menu__anchor">
             <button type="button" class="user-menu__trigger" aria-haspopup="menu" :aria-expanded="open" @click="open = !open">
@@ -63,6 +69,7 @@ async function signOut() {
    cursor: pointer;
 }
 .user-menu__wallet,
+.user-menu__balances,
 .user-menu__name,
 .user-menu__chevron {
    display: none;
@@ -92,6 +99,9 @@ async function signOut() {
    background: var(--m-surface-2);
 }
 @media (min-width: 900px) {
+   .user-menu__balances {
+      display: inline-flex;
+   }
    .user-menu__wallet {
       display: inline-block;
       padding: 7px 12px;

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // "My wallet" (the pill in the desktop header): the user's Mostro wallet on Solana.
 const session = useSessionStore();
+const wallet = useWalletStore();
+onMounted(() => void wallet.refresh(true));
 const config = useRuntimeConfig();
 
 const explorerUrl = computed(() => `https://explorer.solana.com/address/${session.walletAddress}?cluster=${config.public.solanaCluster}`);
@@ -22,6 +24,10 @@ async function copyAddress() {
       <div class="wallet">
          <h1 class="wallet__title">Your Mostro wallet</h1>
          <p class="wallet__lead">Created on Solana when you signed up. Your passes live here.</p>
+         <UiCard variant="panel">
+            <p class="wallet__label">BALANCE</p>
+            <WalletBalances />
+         </UiCard>
          <UiCard variant="panel">
             <p class="wallet__label">ADDRESS</p>
             <p class="wallet__address">{{ session.walletAddress }}</p>
