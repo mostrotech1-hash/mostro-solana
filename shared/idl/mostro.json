@@ -1,5 +1,5 @@
 {
-   "address": "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK",
+   "address": "4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG",
    "metadata": {
       "name": "mostro",
       "version": "0.1.0",
@@ -1913,7 +1913,7 @@
             },
             {
                "name": "program",
-               "address": "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK"
+               "address": "4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG"
             },
             {
                "name": "program_data"

@@ -2,6 +2,14 @@
 
 All notable changes to this repository. Dates are UTC-3 (Buenos Aires).
 
+## 2026-10-21: devnet redeployed under a fresh program id
+
+- Program id is now `4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG` on devnet and localnet (`declare_id!`, `Anchor.toml`, `shared/src/constants.ts`, IDL, docs). The 2026-10-14 contract is live: deployed at slot 513532259, IDL account `QDSzgPhfEDo9WZiBu7GRTJnMqYvtDCti2uqVLw6DVK1`, seeded (admin as founding super-admin, artist #0 "MoOG" with its 1B-supply token, six perks). `shared/addresses/devnet.json` rewritten by the seed. The old id `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK` is retired (incompatible layouts and PDAs).
+- Devnet config is demo-friendly: 60 s launch cool-down and a 5 SOL per wallet per curve per 30 days cap (the spec values are 24 h and whatever the team sets); change them with `scripts/set-config.ts`.
+- Perk #0 of artist #0 is "Mostro Pass Classic" at 1,200 tokens (the seed default is now 1,200 instead of 100,000) so the API's demo pass keeps its price; the API's `DEMO_PASS.name` and its test now use the on-chain name. Verified on devnet with `scripts/demo-one-tx.ts 0` (buy exact 1,200 + redeem in one transaction, 167,806 CU, 910 bytes).
+- New `scripts/set-perk.ts` (price, active, max supply, start, uri of a perk).
+- `shared/src/api/mostro-errors.ts` now carries the current error codes (`BuysPaused` 6000, `RedeemsPaused` 6001, `SaleNotStarted` 6003 … `Blacklisted` 6028, `SpendCapExceeded` 6029); it still had the pre-review numbering, so the API's IDL-match test could not pass.
+
 ## 2026-10-14: contract logic from the 2026-10-13 review (breaking)
 
 The program now implements the spec agreed with the CTO: fixed 1B supply per artist token split 28 / 7 / 15 / 50, buy-only curve, cold reserves behind a weighted multisig, 24 h launch cool-down, blacklist instead of KYC, anti-whale monthly SOL cap, two circuit breakers, perks paid in tokens or in SOL (hybrid) with a fixed 80 / 20 burn / rewards split, pass benefits moved to the web app. Every instruction, account layout and error code changed; `programs/mostro/docs/FRONTEND.md` section 12 has the migration table. Not deployed to devnet yet (binary 898,712 bytes against 800,000 reserved; needs `solana program extend` and a fresh config).

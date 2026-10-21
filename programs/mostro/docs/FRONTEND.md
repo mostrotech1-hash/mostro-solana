@@ -10,7 +10,7 @@ This version implements the contract logic agreed in the 2026-10-13 review. **It
 
 | Item                                 | Value                                                                                         |
 | ------------------------------------ | --------------------------------------------------------------------------------------------- |
-| Program id (localnet and devnet)     | `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK`                                                |
+| Program id (localnet and devnet)     | `4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG`                                                |
 | Anchor version                       | 0.32.1                                                                                        |
 | IDL                                  | `target/idl/mostro.json` (copied to `shared/idl/mostro.json` by `yarn export:shared`)         |
 | TypeScript type                      | `target/types/mostro.ts`, exported type `Mostro` (copied to `shared/types/mostro.ts`)         |
@@ -115,10 +115,10 @@ Curve index 0 is the first artist's token (artist 0). Derived devnet values for 
 
 | PDA               | Address                                        |
 | ----------------- | ---------------------------------------------- |
-| `config`          | `CfKmxY8e14VNMGL4P2XTNyjst2ZnvWKn9At3vu1nVkNE` |
-| `treasury`        | `DRNx1WCLCc9xK3CcrdisBm4fhM8VVGFpoQg4rAUGRuXU` |
-| `curve` (index 0) | `5nhi4zryhrajh7qVdD9ZTFbcqaq3tHnLYVizW4wzt5WZ` |
-| `mint` (index 0)  | `XKfjX1yBTSP1tLovvtaPENeiqUhu8HUrxnC6bieLvtc`  |
+| `config`          | `DkvJHPjVai7sSTyU4v2WPM5roYWNguDMw4mmHGmWkUun` |
+| `treasury`        | `Ad15qUyGCQVqnaVdWXMxjtUHqQu1K7swAPh8mYUuQfJf` |
+| `curve` (index 0) | `EBes4GAtgZf9zHy2hwG8AmN8AQE9UmgtMyGQct21tpKR` |
+| `mint` (index 0)  | `Cv1BGNwGaGGoBsqb2WoYEPiaSN38XBJhY92xvteF4wmW`  |
 
 Derivation in web3.js v1:
 

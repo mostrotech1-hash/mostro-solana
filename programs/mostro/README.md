@@ -1,6 +1,6 @@
 # mostro (Solana program)
 
-Anchor 0.32.1 program. Program id `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK` on localnet and devnet (see `Anchor.toml`).
+Anchor 0.32.1 program. Program id `4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG` on localnet and devnet (see `Anchor.toml`).
 
 What it does: one token per artist with a fixed 1B supply (28 % sold on a buy-only bonding curve, 7 % DEX reserve, 15 % Mostro reserve, 50 % artist reserve), cold reserves and the treasury behind a weighted multisig, a 24 h launch cool-down, a blacklist, a per-wallet monthly SOL cap, and perks paid in tokens (`redeem_perk`) or in SOL (`buy_perk_sol`, half curve / half artist reserve) that burn 80 % of the tokens involved, send 20 % to a rewards vault and mint a Metaplex Core asset to the buyer. Pass benefits are applied by the web app, not on-chain.
 
@@ -60,8 +60,8 @@ bash scripts/test-local.sh --skip-build
 anchor deploy
 
 # Upload or upgrade the on-chain IDL so explorers decode transactions
-anchor idl init  6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK -f target/idl/mostro.json --provider.cluster devnet
-anchor idl upgrade 6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK -f target/idl/mostro.json --provider.cluster devnet
+anchor idl init  4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG -f target/idl/mostro.json --provider.cluster devnet
+anchor idl upgrade 4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG -f target/idl/mostro.json --provider.cluster devnet
 
 # Copy IDL and types into the shared workspace package
 yarn export:shared
@@ -93,15 +93,18 @@ npx ts-node scripts/demo-one-tx.ts [perkIndex=0]          # buy exact tokens + r
 
 ## Upgrading devnet
 
-The devnet program account currently reserves 800,000 bytes; this build is 898,712 bytes. Before `anchor deploy` on the existing program id:
+Devnet runs this version under program id `4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG` (deployed 2026-10-21, slot 513532259, IDL account uploaded, seeded with `LAUNCH_COOLDOWN_SECS=60 MAX_SPEND_SOL_PER_MONTH=5`; addresses in `shared/addresses/devnet.json`). The previous deployment (`6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK`, pre-review contract with sells and on-chain KYC) is retired: its account layouts and PDAs are incompatible, which is why this version went to a fresh id instead of an in-place upgrade. Its keypair is kept offline in case the old accounts ever need to be closed.
+
+The program data account was created at exactly the binary size (898,712 bytes). Before `anchor deploy` of any build that is larger, extend it first:
 
 ```bash
-solana program extend 6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK 150000 -u devnet   # or any value >= 98,712
+solana program extend 4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG <extra bytes> -u devnet
 anchor deploy
-anchor idl upgrade 6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK -f target/idl/mostro.json --provider.cluster devnet
+anchor idl upgrade 4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG -f target/idl/mostro.json --provider.cluster devnet
+yarn export:shared
 ```
 
-Account layouts changed (`Config`, `Curve`, `Artist`, `Perk`, `Receipt` are version 2; `Kyc` is gone) and every PDA of the old deployment (`config`, `curve` #0, `mint` #0, the vaults) already exists on devnet under this program id, so `initialize_config` and `create_curve` would fail on the existing accounts. **Deploy this version under a fresh program id**: generate a new keypair, update `declare_id!`, `Anchor.toml`, `shared/src/constants.ts` and the tests' constants, then `anchor build`, `anchor deploy`, `anchor idl init`, `yarn seed:devnet`, `yarn export:shared`. (Closing the old program and redeploying under the same id does not free the old token accounts and mint.) Public devnet RPC rate-limits large deploys: deploy via TPU (no `--use-rpc`) with a saved `--buffer` keypair so it can resume.
+An in-place upgrade keeps every account (config, curves, perks, receipts), so it is only valid when the account layouts did not change. If they did, repeat the fresh-id path: generate a new keypair, update `declare_id!`, `Anchor.toml`, `shared/src/constants.ts` and the docs, then `anchor build`, `anchor deploy` (via TPU with a saved `--buffer` keypair so a rate-limited deploy can resume), `anchor idl init`, `yarn seed:devnet`, `yarn export:shared`. The deploy wallet needs about 6.3 SOL for rent plus about 0.4 SOL for the seed.
 
 ## Program id
 

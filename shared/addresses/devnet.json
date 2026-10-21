@@ -1,124 +1,156 @@
 {
-   "programId": "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK",
+   "programId": "4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG",
    "cluster": "devnet",
    "rpc": "https://api.devnet.solana.com",
    "mplCore": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d",
    "usdcMint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
    "pythSolUsd": "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE",
    "pythFeedId": "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
-   "config": "CfKmxY8e14VNMGL4P2XTNyjst2ZnvWKn9At3vu1nVkNE",
-   "treasury": "DRNx1WCLCc9xK3CcrdisBm4fhM8VVGFpoQg4rAUGRuXU",
-   "treasuryUsdc": "BNF7quju5t7wSS2xvn536n6Uqi4w8LiVuC89cpUFzKZ1",
+   "config": "DkvJHPjVai7sSTyU4v2WPM5roYWNguDMw4mmHGmWkUun",
+   "treasury": "Ad15qUyGCQVqnaVdWXMxjtUHqQu1K7swAPh8mYUuQfJf",
+   "treasuryUsdc": "2hv1dMbikVBe4mBMBAnks9DT1fPv28qcwfRny9sUjsx7",
    "admin": "25TudRmaeaGcbhWXrZfamMeJJ8yQEjz63UpkK7LVQiUA",
+   "allocations": {
+      "totalSupply": "1000000000000000",
+      "curve": "280000000000000",
+      "artistReserve": "500000000000000",
+      "mostroReserve": "150000000000000",
+      "dexReserve": "70000000000000"
+   },
+   "governance": {
+      "totalWeight": 2,
+      "memberCount": 1,
+      "proposalTtlSecs": 604800,
+      "members": [
+         {
+            "wallet": "25TudRmaeaGcbhWXrZfamMeJJ8yQEjz63UpkK7LVQiUA",
+            "role": 2
+         }
+      ]
+   },
+   "launchCooldownSecs": 60,
+   "maxSpendPerPeriodLamports": "5000000000",
    "curves": [
       {
          "index": 0,
-         "curve": "5nhi4zryhrajh7qVdD9ZTFbcqaq3tHnLYVizW4wzt5WZ",
-         "mint": "XKfjX1yBTSP1tLovvtaPENeiqUhu8HUrxnC6bieLvtc",
-         "solVault": "2XgymqmsHPjRjM7A4nRqADqZPRQnYYbZYUr5Y9htoDXC",
-         "rewardsVault": "GUJ2N8xShn6pSSN21Q1bk8HHc2jZnesGdZxUJ6bAfFDq",
-         "usdcVault": "Do3EYRt8hUzmHMR3GZdnVcSk5WX9b9nJLVBajYafNijX",
-         "name": "Mostro",
-         "symbol": "MOST",
-         "decimals": 6
+         "artist": "AyuxriRLYR7SpdNn8MChyBp9gvAza17JYov7wuji7aBp",
+         "curve": "EBes4GAtgZf9zHy2hwG8AmN8AQE9UmgtMyGQct21tpKR",
+         "mint": "Cv1BGNwGaGGoBsqb2WoYEPiaSN38XBJhY92xvteF4wmW",
+         "curveVault": "5T8mPrbSdhvmpLDoAmaXhDPk2KDq5itk5A6z9n1mGHRe",
+         "artistReserve": "24eSGBBXUbapkFtuZHKdXw9cqTTNpPKhp4Qz5y7xwN9b",
+         "mostroReserve": "AaWVh7F9vETthQqNd9QndwEJAtyFLLWiBb3GaCkYwc1S",
+         "dexReserve": "ApxAnDYeRPnAMciVP8t2tuomH9pgEHbdM4BGWsJxeAZb",
+         "solVault": "Hee5isbiPVGm1wp6YdeUrZa7y7m6bLNSUqTRY8isGvvT",
+         "rewardsVault": "DRC3Yrv7R2RwAtSg1oshAqx4iWJn9Xi8hajRDRZWGB8P",
+         "usdcVault": "39tmwNLeQD8pJ8cjxZXW8vXdJkxbsBAmcAULYzftUpGp",
+         "metadata": "6kt1fGWSwPCSh4Audbq7QjKd1bP9sUCMD5QNS1QpkWFh",
+         "name": "MoOG Token",
+         "symbol": "MOOG",
+         "decimals": 6,
+         "saleStartTs": 1792588187
       }
    ],
    "artists": [
       {
          "index": 0,
-         "artist": "D1YjAcrwbjKUrH2FUgDvzP8pgtHGUKSvUaVNV3NzuGME",
+         "artist": "AyuxriRLYR7SpdNn8MChyBp9gvAza17JYov7wuji7aBp",
          "authority": "25TudRmaeaGcbhWXrZfamMeJJ8yQEjz63UpkK7LVQiUA",
+         "curve": "EBes4GAtgZf9zHy2hwG8AmN8AQE9UmgtMyGQct21tpKR",
          "name": "MoOG",
-         "vault": "HoFuaryYqfP2L394JqDexa2k9JPCkb6KcEGMFEZJdLM6",
          "perks": [
             {
                "index": 0,
-               "perk": "BBXVAsVaWhh5y1GAPDaLe8kFyhTJQqcFBuDRUJKRMr6y",
-               "collection": "EQj6ZfYcWP9xTA36DSS8JYK6EmJ3m4mHKW4sotLbA8f1",
+               "perk": "59mBsc6xcDw1uvk1PWMSmsqzSVPMvbBpsRwggK5vLWKs",
+               "collection": "E9Tj3pKNcfUigjBVjUk2r4PjbDEd7iqzm4MfjoSZZxiJ",
                "collectionSalt": 1,
                "kind": "pass",
                "tier": 0,
-               "name": "MoOG Pass Standard",
-               "price": "1200000000",
+               "name": "Mostro Pass Classic",
+               "payment": "tokens",
+               "priceTokens": "1200000000",
+               "priceLamports": "0",
                "priceUi": 1200,
                "maxSupply": 0,
-               "publicStartTs": 0,
-               "vipOnly": false,
-               "discountEligible": false
+               "publicStartTs": 0
             },
             {
                "index": 1,
-               "perk": "H8fDyPY3QkU6E7wj1wT4a8AKZANL3JMtUfMs8NnbG5E3",
-               "collection": "23zKLwiPFHmofiQiWU8faPjnDrg2QagSBrMUfoHFkCyM",
+               "perk": "HxAWFE9AKXVxSoGDg1cQ3yXcJTURfJ4Utypwxj4FqHtj",
+               "collection": "Atmt2Z3qBjg1wmsVWodWWjRzrmWwDSYfTg7iiSPeZYrt",
                "collectionSalt": 1,
                "kind": "pass",
                "tier": 1,
-               "name": "MoOG Pass VIP",
-               "price": "3750000000",
-               "priceUi": 3750,
+               "name": "Mostro Pass VIP",
+               "payment": "tokens",
+               "priceTokens": "300000000000",
+               "priceLamports": "0",
+               "priceUi": 300000,
                "maxSupply": 0,
-               "publicStartTs": 0,
-               "vipOnly": false,
-               "discountEligible": false
+               "publicStartTs": 0
             },
             {
                "index": 2,
-               "perk": "4VZac7EuEekVcKDtPDYdMhTSp5RWbUdW45rDPUPPAnfJ",
-               "collection": "8bfaHyAmqUrhDWNWr49Ec7AsGHhpyNfRznweYK6nQBU7",
+               "perk": "HxzhPJGNMNZCrW9wKArtLUGt2HboVe9YBsyAqDWeGqig",
+               "collection": "4fioHqUNWKQcuKu8kshDVK9Jf5gusF9Ge5DVpC9NKru9",
                "collectionSalt": 1,
                "kind": "music",
                "tier": 0,
                "name": "Unreleased track",
-               "price": "50000000",
-               "priceUi": 50,
+               "payment": "tokens",
+               "priceTokens": "10000000000",
+               "priceLamports": "0",
+               "priceUi": 10000,
                "maxSupply": 0,
-               "publicStartTs": 0,
-               "vipOnly": false,
-               "discountEligible": true
+               "publicStartTs": 0
             },
             {
                "index": 3,
-               "perk": "9Kcww2qpAKFVejGwgnKY5GdysBqyNS3W2HGGrgrEmST1",
-               "collection": "HzGspjCxMBqefD4L7BFdDgvLwTVzfijLSgPh7Kzgxiip",
+               "perk": "HmuvEW1SggJasGuSzpNjE9JGBLt17vWEZ8nMDpoUTgY4",
+               "collection": "Cp523ZP1MaNCRvmzHkaRmowPy6kmMTro8AxuVdMaGqQn",
                "collectionSalt": 1,
                "kind": "event",
                "tier": 0,
                "name": "Listening session",
-               "price": "900000000",
-               "priceUi": 900,
+               "payment": "tokens",
+               "priceTokens": "50000000000",
+               "priceLamports": "0",
+               "priceUi": 50000,
                "maxSupply": 0,
-               "publicStartTs": 1791804058,
-               "vipOnly": false,
-               "discountEligible": false
+               "publicStartTs": 1792847334
             },
             {
                "index": 4,
-               "perk": "6PiDqHLwAepPNft3Q426yjVqBxwsbPUV4QY9VXJEP93P",
-               "collection": "4TWoXDaVF27P7ef6TUsTMF1NkqyLo2MF1kwuY89rrtj9",
+               "perk": "F8w69DMy2BdGYpG3oU3sjUQAeEhBd7Fo4wX6G6ge51HL",
+               "collection": "7J4WHFxuCKJivDdR2X3s8KMoRhKq1PK5FojcUmLfp7wX",
                "collectionSalt": 1,
                "kind": "merch",
                "tier": 0,
                "name": "Numbered tee",
-               "price": "1500000000",
-               "priceUi": 1500,
+               "payment": "tokens",
+               "priceTokens": "20000000000",
+               "priceLamports": "0",
+               "priceUi": 20000,
                "maxSupply": 100,
-               "publicStartTs": 0,
-               "vipOnly": false,
-               "discountEligible": true
+               "publicStartTs": 0
+            },
+            {
+               "index": 5,
+               "perk": "Hp5kUXi9LQsLLinWMQFnXUVnquPkxhAuBHQbNFqtg7SS",
+               "collection": "26RiE2Cd84KEt6WrtRB6JSUJd7u1Wnc2T95gxnWGTiju",
+               "collectionSalt": 1,
+               "kind": "music",
+               "tier": 0,
+               "name": "Exclusive drop",
+               "payment": "sol",
+               "priceTokens": "0",
+               "priceLamports": "200000000",
+               "priceUi": 0.2,
+               "maxSupply": 100,
+               "publicStartTs": 0
             }
          ]
       }
    ],
-   "passBenefits": {
-      "standardDiscountBps": 500,
-      "vipDiscountBps": 1500,
-      "standardEarlySecs": 86400,
-      "vipEarlySecs": 259200
-   },
-   "splitFloors": {
-      "minBurnBps": 0,
-      "minRewardsBps": 0
-   },
-   "deployedAt": "2026-10-09T13:37:15.727Z",
+   "deployedAt": "2026-10-21T13:11:20.860Z",
    "programVersion": "0.1.0"
 }

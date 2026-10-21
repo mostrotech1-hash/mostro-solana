@@ -7,12 +7,12 @@ import type { PassQuote, TokenQuote } from "@mostro/shared/api";
 import { ENV, type Env } from "../../config/env";
 import { apiError } from "../../common/api-error";
 
-/** The demo pass: artist #0, perk #0 ("MoOG Pass Standard", 1,200 $MOST). Perk #1 (VIP) is never used here. */
+/** The demo pass: artist #0, perk #0 ("Mostro Pass Classic", 1,200 $MOST). Perk #1 (VIP) is never used here. */
 export const DEMO_PASS = {
    curveIndex: 0,
    artistIndex: 0,
    perkIndex: 0,
-   name: "MoOG Pass Standard",
+   name: "Mostro Pass Classic",
    /** Exactly 1,200 $MOST in base units (6 decimals). */
    priceBaseUnits: 1_200_000_000n,
    slippageBps: 100,

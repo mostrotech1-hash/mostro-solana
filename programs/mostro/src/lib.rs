@@ -28,7 +28,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK");
+declare_id!("4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG");
 
 #[program]
 pub mod mostro {

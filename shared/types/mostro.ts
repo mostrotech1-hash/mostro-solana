@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/mostro.json`.
  */
 export type Mostro = {
-   address: "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK";
+   address: "4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG";
    metadata: {
       name: "mostro";
       version: "0.1.0";
@@ -1919,7 +1919,7 @@ export type Mostro = {
             },
             {
                name: "program";
-               address: "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK";
+               address: "4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG";
             },
             {
                name: "programData";

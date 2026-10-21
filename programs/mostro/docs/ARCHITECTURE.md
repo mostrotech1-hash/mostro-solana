@@ -4,7 +4,7 @@ Reader: an engineer or reviewer who wants to understand what the program does on
 
 This is the contract logic agreed in the 2026-10-13 contract review: one token per artist with a fixed supply, a buy-only curve, cold reserves behind a weighted multisig, a 24 h launch cool-down, a blacklist instead of on-chain KYC, an anti-whale cap, and perks that burn 80 % of the tokens they consume. Pass benefits are applied by the web app, not on-chain.
 
-One Anchor 0.32.1 program, id `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK`, five concerns:
+One Anchor 0.32.1 program, id `4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG`, five concerns:
 
 | Module                       | Concern                                                                                                                                                        |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |

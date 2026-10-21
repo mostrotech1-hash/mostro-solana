@@ -126,7 +126,7 @@ const PERKS: PerkSpec[] = [
    {
       kind: "pass",
       tier: TIER_CLASSIC,
-      priceTokens: 100_000,
+      priceTokens: 1_200,
       priceSol: 0,
       maxSupply: 0,
       publicStartTs: () => new BN(0),

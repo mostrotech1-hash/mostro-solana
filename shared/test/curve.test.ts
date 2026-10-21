@@ -219,9 +219,9 @@ describe("pda.ts", () => {
       expect(u64Le(1).toString("hex")).to.equal("0100000000000000");
       expect(u32Le(258).toString("hex")).to.equal("02010000");
       expect(() => u64Le(new BN(2).pow(new BN(64)))).to.throw(RangeError);
-      expect(configPda()[0].toBase58()).to.equal("CfKmxY8e14VNMGL4P2XTNyjst2ZnvWKn9At3vu1nVkNE");
-      expect(curvePda(0)[0].toBase58()).to.equal("5nhi4zryhrajh7qVdD9ZTFbcqaq3tHnLYVizW4wzt5WZ");
-      expect(mintPda(0)[0].toBase58()).to.equal("XKfjX1yBTSP1tLovvtaPENeiqUhu8HUrxnC6bieLvtc");
+      expect(configPda()[0].toBase58()).to.equal("DkvJHPjVai7sSTyU4v2WPM5roYWNguDMw4mmHGmWkUun");
+      expect(curvePda(0)[0].toBase58()).to.equal("EBes4GAtgZf9zHy2hwG8AmN8AQE9UmgtMyGQct21tpKR");
+      expect(mintPda(0)[0].toBase58()).to.equal("Cv1BGNwGaGGoBsqb2WoYEPiaSN38XBJhY92xvteF4wmW");
       const wallet = PublicKey.unique();
       expect(blacklistPda(wallet)[0].equals(PublicKey.findProgramAddressSync([Buffer.from("blacklist"), wallet.toBuffer()], PROGRAM_ID)[0])).to.equal(true);
       expect(memberPda(wallet)[0].equals(PublicKey.findProgramAddressSync([Buffer.from("member"), wallet.toBuffer()], PROGRAM_ID)[0])).to.equal(true);

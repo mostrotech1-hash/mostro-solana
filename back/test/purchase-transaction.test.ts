@@ -34,9 +34,9 @@ describe("sponsored pass purchase (live devnet state, nothing is sent)", () => {
       assert.equal(solana.connection.rpcEndpoint, "https://api.devnet.solana.com");
    });
 
-   it("selects artist #0, perk #0: MoOG Pass Standard, exactly 1,200 $MOST", () => {
+   it("selects artist #0, perk #0: Mostro Pass Classic, exactly 1,200 $MOST", () => {
       assert.equal(state.perkAddress.toBase58(), devnet.artists[0]!.perks[0]!.perk);
-      assert.equal(state.perk.name, "MoOG Pass Standard");
+      assert.equal(state.perk.name, "Mostro Pass Classic");
       assert.equal(state.quote.pass.priceMost, "1200000000");
       assert.equal(state.quote.tokensOut, "1200000000");
       assert.equal(DEMO_PASS.perkIndex, 0);
