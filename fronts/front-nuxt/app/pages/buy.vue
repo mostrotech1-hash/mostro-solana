@@ -3,6 +3,7 @@ import { TOKEN_PURCHASE_LIMITS, type TokenQuote } from "@mostro/shared/api";
 
 // Buy $MOOG: pick an amount, see the live price from the curve, pay from the Mostro wallet (card through MoonPay when it is short).
 const session = useSessionStore();
+const wallet = useWalletStore();
 const config = useRuntimeConfig();
 
 const PRESETS = [100, 500, 1000, 5000];
@@ -82,6 +83,7 @@ watch(tokens, () => {
 });
 
 onMounted(async () => {
+   void wallet.refresh();
    await session.loadFeatures();
    if (!session.chainEnabled) {
       loading.value = false;
@@ -108,6 +110,17 @@ async function onBuy() {
    await buy();
 }
 
+/** The user chose to pay by card (MoonPay) even though the wallet may already hold enough SOL. */
+async function onBuyByCard() {
+   if (buying.value) return;
+   failure.value = "";
+   await session.refreshKyc().catch(() => undefined);
+   if (session.needsKyc) return void (await navigateTo("/verify?next=/buy"));
+   if (!fresh.value) return;
+   moonpaySol.value = Math.max(MIN_CARD_SOL, Math.ceil((Number(shortBy.value) / 1e9) * 100) / 100);
+   moonpayOpen.value = true;
+}
+
 async function onCardPaid() {
    await refreshQuote();
    await refreshBalance();
@@ -130,6 +143,7 @@ async function buy() {
       signature.value = result.signature;
       phase.value = result.status === "confirmed" ? "done" : "pending";
       await refreshBalance().catch(() => undefined);
+      void wallet.refresh(true);
    } catch (error) {
       console.error("[mostro] buying $MOOG failed", error);
       if (error instanceof PurchaseError && error.kind === "kyc_required") return void (await navigateTo("/verify?next=/buy"));
@@ -175,6 +189,7 @@ async function buy() {
                <UiRow label="You pay" :value="`${priceSol} SOL`" :hint="priceUsd ? `≈ ${priceUsd}` : undefined" strong />
                <UiRow label="At most" :value="`${maxSol} SOL`" hint="If the price moves while you confirm" />
                <UiRow label="Wallet balance" :value="`${balanceSol} SOL`" />
+               <UiRow label="You own" :value="`${wallet.token === null ? '…' : formatTokens(wallet.token)} $MOOG`" />
             </UiCard>
 
             <p v-if="loadError" class="buy__error" role="alert">{{ loadError }}</p>
@@ -185,6 +200,7 @@ async function buy() {
             <UiButton variant="primary" block :loading="buying" :disabled="!validAmount || (!session.needsKyc && (!fresh || loading))" @click="onBuy">
                {{ buying ? "Buying…" : session.needsKyc ? "Verify your identity to buy" : `Buy ${validAmount ? tokens.toLocaleString("en-US") : ""} $MOOG` }}
             </UiButton>
+            <UiButton v-if="!session.needsKyc" variant="secondary" block :disabled="buying || !fresh || loading || !validAmount" @click="onBuyByCard">Pay by card (MoonPay)</UiButton>
             <p class="buy__note">No network fee: Mostro pays it. Solana payments are final and can't be reversed.</p>
          </template>
       </div>

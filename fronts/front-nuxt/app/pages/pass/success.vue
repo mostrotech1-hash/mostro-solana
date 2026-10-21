@@ -5,6 +5,8 @@ import passImage from "~/assets/images/Mo-OG-Pass-x.png";
 const session = useSessionStore();
 const purchase = usePurchaseStore();
 const config = useRuntimeConfig();
+// The pass was just paid for: show the new balances right away.
+onMounted(() => void useWalletStore().refresh(true));
 // For design review in development only, /pass/success?preview=1 shows it with placeholder data.
 definePageMeta({
    middleware: (to) => {

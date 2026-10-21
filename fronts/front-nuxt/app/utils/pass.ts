@@ -56,3 +56,12 @@ export function passesLeft(quote: PassQuote | null): number | null {
 export function shortAddress(address: string): string {
    return address.length > 10 ? `${address.slice(0, 4)}…${address.slice(-3)}` : address;
 }
+
+/** Token base units to a readable amount, e.g. 1234500000n (6 decimals) -> "1,234.5". Rounded down: a balance is never overstated. */
+export function formatTokens(baseUnits: bigint, decimals = 6, shown = 2): string {
+   const scale = 10n ** BigInt(decimals - shown);
+   const cut = baseUnits / scale;
+   const whole = cut / 10n ** BigInt(shown);
+   const fraction = (cut % 10n ** BigInt(shown)).toString().padStart(shown, "0").replace(/0+$/, "");
+   return `${whole.toLocaleString("en-US")}${fraction ? `.${fraction}` : ""}`;
+}

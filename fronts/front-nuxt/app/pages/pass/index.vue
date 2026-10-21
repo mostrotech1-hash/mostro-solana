@@ -104,14 +104,14 @@ async function onOpenConfirm() {
    void refresh().then(() => (confirmOpen.value = quote.value !== null));
 }
 
-function onConfirm() {
+function onConfirm(byCard = false) {
    if (!quote.value || purchase.inProgress) return;
    // The user approved this ceiling. Nothing above it is ever signed, even if the price moves.
    purchase.reset();
    purchase.approvedMaxLamportsIn = quote.value.maxLamportsIn;
    confirmOpen.value = false;
    // Enough SOL: buy straight away. Short: top up by card first, then buy.
-   if (shortBy.value > 0n) moonpayOpen.value = true;
+   if (byCard || shortBy.value > 0n) moonpayOpen.value = true;
    else void navigateTo("/pass/paying");
 }
 
@@ -212,7 +212,8 @@ function onCancel() {
          </div>
          <p v-if="shortBy > 0n" class="confirm__note">Your wallet needs more SOL for this pass. After you confirm, you will pay by card.</p>
          <p class="confirm__note">Solana payments are final and can't be reversed. Please review the amount before confirming.</p>
-         <UiButton variant="primary" block @click="onConfirm">Confirm and pay {{ priceSol }} SOL</UiButton>
+         <UiButton variant="primary" block @click="onConfirm()">Confirm and pay {{ priceSol }} SOL</UiButton>
+         <UiButton variant="secondary" block @click="onConfirm(true)">Pay by card instead (MoonPay)</UiButton>
          <UiButton variant="secondary" block @click="onCancel">Cancel</UiButton>
       </UiSheet>
 

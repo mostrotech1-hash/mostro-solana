@@ -77,3 +77,13 @@ export async function getSignatureStatus(url: string, signature: string): Promis
    const result = await rpc<{ value: (SignatureStatus | null)[] }>(url, "getSignatureStatuses", [[signature], { searchTransactionHistory: true }]);
    return result.value[0] ?? null;
 }
+
+/** The wallet's balance of one token (base units): the sum of its token accounts for `mint`; 0 when it never held any. */
+export async function getTokenBalance(url: string, owner: string, mint: string): Promise<bigint> {
+   const result = await rpc<{ value: { account: { data: { parsed: { info: { tokenAmount: { amount: string } } } } } }[] }>(url, "getTokenAccountsByOwner", [
+      owner,
+      { mint },
+      { encoding: "jsonParsed", commitment: "confirmed" },
+   ]);
+   return result.value.reduce((sum, entry) => sum + BigInt(entry.account.data.parsed.info.tokenAmount.amount), 0n);
+}
