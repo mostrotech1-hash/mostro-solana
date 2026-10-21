@@ -15,7 +15,7 @@ import { RpcError, getBlockHeight, getSignatureStatus, describeTransactionError,
 import { attachBuyerSignature, bytesToBase64, normalizeSignature, prepareForSigning, transactionId, verifySignature } from "~/utils/solana-tx";
 
 /**
- * The pass purchase on Solana devnet, in one atomic transaction (buy exactly 1,200 $MOST on the bonding curve and redeem
+ * The pass purchase on Solana devnet, in one atomic transaction (buy exactly 1,200 $MOOG on the bonding curve and redeem
  * the pass). The Mostro API builds it and signs as sponsor (pays the fee and the rent); the user's Openfort wallet signs
  * as the buyer; the browser sends it to devnet. Success is shown only after the chain confirms it AND the API verifies
  * the redemption (`/pass/purchase/result`).
@@ -83,7 +83,7 @@ async function signWithOpenfort(ctx: PurchaseContext, message: Uint8Array): Prom
    throw new PurchaseError("Your wallet could not sign the purchase. Nothing was bought. Please sign in again and try once more.", "wallet");
 }
 
-/** Turns an API refusal into a PurchaseError with a message that is safe to show. Shared by the pass and $MOST purchases. */
+/** Turns an API refusal into a PurchaseError with a message that is safe to show. Shared by the pass and $MOOG purchases. */
 export function toPurchaseError(error: unknown): unknown {
    if (!(error instanceof ApiRequestError)) return error;
    if (error.code === "QUOTE_CHANGED") return new PurchaseError("The price moved while you were confirming. Review the new price and confirm again.", "quote_changed", error.data?.quote);
@@ -156,7 +156,7 @@ export interface BuiltTransaction {
 
 /**
  * Checks the sponsor-signed transaction, has the user's wallet sign it, sends it and waits for the network.
- * Used by the pass purchase and the $MOST purchase, so both sign and send in exactly the same way.
+ * Used by the pass purchase and the $MOOG purchase, so both sign and send in exactly the same way.
  */
 export async function submitBuiltTransaction(ctx: PurchaseContext, built: BuiltTransaction): Promise<{ signature: string; status: "confirmed" | "pending" }> {
    const { raw, parsed } = (() => {

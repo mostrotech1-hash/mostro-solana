@@ -128,7 +128,7 @@ export const useSessionStore = defineStore("session", () => {
       profile.value = await api<UserProfile>("/users/me/avatar", { method: "POST", body });
    }
 
-   /** Whether buying a pass or $MOST is open (the server turns it off while the Solana program is not ready). */
+   /** Whether buying a pass or $MOOG is open (the server turns it off while the Solana program is not ready). */
    const chainEnabled = ref(true);
 
    /** Asks the server what is open. If it cannot be reached, buying stays as it was. */
