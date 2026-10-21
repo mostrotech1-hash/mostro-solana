@@ -1,7 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 
 /** Mostro program id (same on localnet and devnet, see Anchor.toml). */
-export const PROGRAM_ID = new PublicKey("6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK");
+export const PROGRAM_ID = new PublicKey("4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG");
 
 /** Metaplex Core program. Every redeemed perk is a Core asset inside the perk's Core collection. */
 export const MPL_CORE_PROGRAM_ID = new PublicKey("CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d");

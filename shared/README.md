@@ -5,7 +5,7 @@ It contains the frozen IDL, PDA derivations, bonding-curve math that matches the
 integers to the unit, SOL/USD pricing, instruction builders (buys, perks, admin, governance),
 typed account fetchers, holder lists, pass discovery and the program error table with UI copy.
 
-Program id: `6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK` (localnet and devnet).
+Program id: `4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG` (localnet and devnet).
 
 This version follows the contract logic agreed on 2026-10-13: one token per artist with a fixed
 1B supply, a buy-only curve (no `sell`), cold reserves behind a weighted multisig, a 24 h launch

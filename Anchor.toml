@@ -8,9 +8,9 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-mostro = "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK"
+mostro = "4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG"
 [programs.devnet]
-mostro = "6rXQuWPi6rYC5EUPYhRMB9L5sjJo6mcYFCMZH6osZDPK"
+mostro = "4GZtfZvBFXy2YP69kE5cGL1UXjyqhSoZvQPtLtoAVDvG"
 
 [provider]
 cluster = "devnet"
