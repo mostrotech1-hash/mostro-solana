@@ -53,8 +53,18 @@ const schema = z.object({
 export type Env = z.infer<typeof schema>;
 
 /** Treats `KEY=` (empty) the same as unset. */
+/** A dashboard paste often keeps the quotes (`"Mostro Test"`) that a `.env` file would have removed: drop one wrapping pair and stray spaces. */
+export function cleanSettingValue(value: string): string {
+   const trimmed = value.trim();
+   return trimmed.length >= 2 && (trimmed[0] === '"' || trimmed[0] === "'") && trimmed.endsWith(trimmed[0]) ? trimmed.slice(1, -1).trim() : trimmed;
+}
+
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-   const cleaned = Object.fromEntries(Object.entries(source).filter(([, value]) => value !== ""));
+   const cleaned = Object.fromEntries(
+      Object.entries(source)
+         .filter(([, value]) => value !== "")
+         .map(([key, value]) => [key, key.startsWith("SUMSUB_") && typeof value === "string" ? cleanSettingValue(value) : value]),
+   );
    return schema.parse(cleaned);
 }
 

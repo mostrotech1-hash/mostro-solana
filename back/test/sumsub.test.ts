@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
+import { cleanSettingValue, loadEnv } from "../src/config/env";
 import { isValidWebhookSignature, kycStatusFromReview } from "../src/modules/sumsub/sumsub.service";
 
 const secret = "webhook-secret";
@@ -27,4 +28,15 @@ test("status mapping: only a completed review decides", () => {
    assert.equal(kycStatusFromReview({ reviewStatus: "completed", reviewResult: { reviewAnswer: "GREEN" } }), "approved");
    assert.equal(kycStatusFromReview({ reviewStatus: "completed", reviewResult: { reviewAnswer: "RED", reviewRejectType: "RETRY" } }), "rejected");
    assert.equal(kycStatusFromReview({ reviewStatus: "completed" }), "pending");
+});
+
+test("SUMSUB_* settings pasted with quotes or spaces are cleaned (the live bug: the level name kept its quotes)", () => {
+   assert.equal(cleanSettingValue('"Mostro Test"'), "Mostro Test");
+   assert.equal(cleanSettingValue("'Mostro Test'"), "Mostro Test");
+   assert.equal(cleanSettingValue("  Mostro Test \n"), "Mostro Test");
+   assert.equal(cleanSettingValue("Mostro Test"), "Mostro Test");
+   assert.equal(cleanSettingValue('"'), '"');
+   const env = loadEnv({ DATABASE_URL: "x", SUMSUB_LEVEL_NAME: '"Mostro Test"', SUMSUB_APP_TOKEN: " sbx:abc\n" } as NodeJS.ProcessEnv);
+   assert.equal(env.SUMSUB_LEVEL_NAME, "Mostro Test");
+   assert.equal(env.SUMSUB_APP_TOKEN, "sbx:abc");
 });
