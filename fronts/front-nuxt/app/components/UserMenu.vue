@@ -11,7 +11,10 @@ function onClickOutside(event: MouseEvent) {
 onMounted(() => {
    document.addEventListener("click", onClickOutside);
    void wallet.refresh();
+   void session.loadFeatures();
 });
+
+const kycLabel = computed(() => ({ none: "Not verified", pending: "In review", approved: "Verified", rejected: "Not verified" })[session.kycStatus]);
 onBeforeUnmount(() => document.removeEventListener("click", onClickOutside));
 
 async function signOut() {
@@ -25,7 +28,10 @@ async function signOut() {
 <template>
    <div ref="root" class="user-menu">
       <template v-if="session.profile">
-         <WalletBalances to="/wallet" class="user-menu__balances" />
+         <div class="user-menu__money">
+            <WalletBalances to="/wallet" />
+            <UiButton v-if="session.chainEnabled" to="/buy" variant="pill">Buy ${{ wallet.tokenSymbol }}</UiButton>
+         </div>
          <NuxtLink to="/wallet" class="user-menu__wallet">My wallet</NuxtLink>
          <div class="user-menu__anchor">
             <button type="button" class="user-menu__trigger" aria-haspopup="menu" :aria-expanded="open" @click="open = !open">
@@ -36,6 +42,8 @@ async function signOut() {
                </svg>
             </button>
             <div v-if="open" class="user-menu__panel" role="menu">
+               <p class="user-menu__kyc">Identity: <strong>{{ kycLabel }}</strong></p>
+               <NuxtLink v-if="session.kycStatus !== 'approved' && session.kycStatus !== 'pending'" to="/verify" role="menuitem" class="user-menu__item" @click="open = false">Verify your identity</NuxtLink>
                <button type="button" role="menuitem" class="user-menu__item" @click="signOut">Sign out</button>
             </div>
          </div>
@@ -69,7 +77,7 @@ async function signOut() {
    cursor: pointer;
 }
 .user-menu__wallet,
-.user-menu__balances,
+.user-menu__money,
 .user-menu__name,
 .user-menu__chevron {
    display: none;
@@ -84,7 +92,20 @@ async function signOut() {
    background: var(--m-surface);
    border: 1px solid var(--m-border);
 }
+.user-menu__kyc {
+   margin: 0;
+   padding: 8px 12px;
+   color: var(--m-muted);
+   font-size: 13px;
+}
+.user-menu__kyc strong {
+   color: var(--m-text);
+   font-weight: 600;
+}
 .user-menu__item {
+   display: block;
+   box-sizing: border-box;
+   text-decoration: none;
    width: 100%;
    padding: 10px 12px;
    border: 0;
@@ -99,8 +120,10 @@ async function signOut() {
    background: var(--m-surface-2);
 }
 @media (min-width: 900px) {
-   .user-menu__balances {
+   .user-menu__money {
       display: inline-flex;
+      align-items: center;
+      gap: 10px;
    }
    .user-menu__wallet {
       display: inline-block;

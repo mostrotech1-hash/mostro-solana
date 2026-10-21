@@ -4,6 +4,7 @@ import passImage from "~/assets/images/Mo-OG-Pass-x.png";
 
 // H03 · The pass, paid in SOL  +  H04 · Review and confirm (sheet on phones, modal on desktop)
 const session = useSessionStore();
+const walletStore = useWalletStore();
 const route = useRoute();
 const config = useRuntimeConfig();
 // "Try again" on the cancelled screen comes back here with the confirmation already open (H04).
@@ -64,8 +65,8 @@ onMounted(async () => {
    if (route.query.confirm === "1" && quote.value) confirmOpen.value = true;
 });
 
-const priceSol = computed(() => (quote.value ? formatSol(quote.value.lamportsTotal) : session.chainEnabled ? "…" : "–"));
-const maxSol = computed(() => (quote.value ? formatSol(quote.value.maxLamportsIn) : "…"));
+const priceSol = computed(() => (quote.value ? formatSolPrice(quote.value.lamportsTotal) : session.chainEnabled ? "…" : "–"));
+const maxSol = computed(() => (quote.value ? formatSolPrice(quote.value.maxLamportsIn) : "…"));
 const priceUsd = computed(() => (quote.value ? formatUsd(quote.value.lamportsTotal, quote.value) : null));
 const balanceSol = computed(() => (balance.value === null ? "…" : formatSol(balance.value, 3)));
 const left = computed(() => passesLeft(quote.value));
@@ -134,7 +135,11 @@ function onCancel() {
 <template>
    <AppShell title="The pass" back-to="/profile">
       <div class="pass">
-         <div v-if="session.chainEnabled" class="pass__top"><UiButton to="/buy" variant="pill">Buy $MOOG</UiButton></div>
+         <!-- Phones: balances and the Buy button at the top. On desktop they live in the header, next to each other. -->
+         <div class="pass__top">
+            <WalletBalances to="/wallet" />
+            <UiButton v-if="session.chainEnabled" to="/buy" variant="pill">Buy ${{ walletStore.tokenSymbol }}</UiButton>
+         </div>
          <p v-else class="pass__soon" role="status">Buying opens soon. You can verify your identity now so you are ready.</p>
          <!-- Phones: pass card, then the price panel. -->
          <div class="pass__phone">
@@ -232,7 +237,15 @@ function onCancel() {
 }
 .pass__top {
    display: flex;
-   justify-content: flex-end;
+   flex-wrap: wrap;
+   align-items: center;
+   justify-content: space-between;
+   gap: 10px;
+}
+@media (min-width: 900px) {
+   .pass__top {
+      display: none;
+   }
 }
 .pass {
    display: flex;

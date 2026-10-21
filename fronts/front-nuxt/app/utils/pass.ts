@@ -65,3 +65,8 @@ export function formatTokens(baseUnits: bigint, decimals = 6, shown = 2): string
    const fraction = (cut % 10n ** BigInt(shown)).toString().padStart(shown, "0").replace(/0+$/, "");
    return `${whole.toLocaleString("en-US")}${fraction ? `.${fraction}` : ""}`;
 }
+
+/** A price in SOL. Tiny prices keep 6 decimals (0.000096, not a rounded-up 0.0001); everything else shows 4. Rounded up, like `formatSol`. */
+export function formatSolPrice(lamports: bigint | string): string {
+   return formatSol(lamports, BigInt(lamports) < 1_000_000n ? 6 : 4);
+}

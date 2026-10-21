@@ -26,8 +26,8 @@ let boughtTokens = 0;
 const validAmount = computed(() => Number.isInteger(tokens.value) && tokens.value >= TOKEN_PURCHASE_LIMITS.minTokens && tokens.value <= TOKEN_PURCHASE_LIMITS.maxTokens);
 // A quote for another amount is never shown: while the new one loads, the price reads "…" instead of a wrong number.
 const fresh = computed(() => (quote.value && quote.value.tokens === tokens.value ? quote.value : null));
-const priceSol = computed(() => (fresh.value ? formatSol(fresh.value.lamportsTotal) : "…"));
-const maxSol = computed(() => (fresh.value ? formatSol(fresh.value.maxLamportsIn) : "…"));
+const priceSol = computed(() => (fresh.value ? formatSolPrice(fresh.value.lamportsTotal) : "…"));
+const maxSol = computed(() => (fresh.value ? formatSolPrice(fresh.value.maxLamportsIn) : "…"));
 const priceUsd = computed(() => (fresh.value ? formatUsd(fresh.value.lamportsTotal, fresh.value) : null));
 const balanceSol = computed(() => (balance.value === null ? "…" : formatSol(balance.value, 3)));
 const needed = computed(() => (fresh.value ? BigInt(fresh.value.maxLamportsIn) + WALLET_RENT_FLOOR_LAMPORTS : 0n));
@@ -165,10 +165,11 @@ async function buy() {
          <template v-else-if="phase === 'done' || phase === 'pending'">
             <UiStatus
                :title="phase === 'done' ? `You bought ${boughtTokens.toLocaleString('en-US')} $MOOG` : 'Your purchase is on its way'"
-               :text="phase === 'done' ? 'The tokens are in your Mostro wallet.' : 'The network has not confirmed it yet. You can check it on the explorer; nothing is charged twice.'"
+               :text="phase === 'done' ? (wallet.token === null ? 'The tokens are in your Mostro wallet.' : `You now own ${formatTokens(wallet.token)} $MOOG in your Mostro wallet.`) : 'The network has not confirmed it yet. You can check it on the explorer; nothing is charged twice.'"
             >
+               <UiButton to="/wallet" variant="primary" block>View my wallet</UiButton>
                <UiButton :href="explorerUrl" variant="secondary" block>View on Solana Explorer</UiButton>
-               <UiButton to="/pass" variant="primary" block>Back to the pass</UiButton>
+               <UiButton to="/pass" variant="secondary" block>Back to the pass</UiButton>
             </UiStatus>
          </template>
 

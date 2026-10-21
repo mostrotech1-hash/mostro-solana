@@ -132,10 +132,13 @@ export const useSessionStore = defineStore("session", () => {
    const chainEnabled = ref(true);
 
    /** Asks the server what is open. If it cannot be reached, buying stays as it was. */
-   async function loadFeatures(): Promise<void> {
+   let featuresLoaded = false;
+   async function loadFeatures(force = false): Promise<void> {
+      if (featuresLoaded && !force) return;
       try {
          const { chainEnabled: enabled } = await apiFetch<FeaturesResponse>(config.public.apiBase, null, "/features");
          chainEnabled.value = enabled;
+         featuresLoaded = true;
       } catch {
          // keep the last known value
       }
